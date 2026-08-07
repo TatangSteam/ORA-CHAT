@@ -1,0 +1,16 @@
+services:
+  db:
+    image: pgvector/pgvector:0.8.2-pg16-trixie
+    environment:
+      POSTGRES_DB: whatsapp_chatbot_gate_a
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: gate-a-local-postgres
+    ports:
+      - "127.0.0.1:55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d whatsapp_chatbot_gate_a"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    tmpfs:
+      - /var/lib/postgresql/data

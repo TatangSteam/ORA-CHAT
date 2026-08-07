@@ -1,0 +1,108 @@
+# Dependencies and package-manager caches
+node_modules/
+.pnpm-store/
+.npm/
+
+# Application and compiler output
+.next/
+.turbo/
+.output/
+.vercel/
+dist/
+build/
+out/
+*.tsbuildinfo
+*.tsbuildinfo.*
+
+# Test output (curated evidence under gate-a/ or work-packages/ stays tracked)
+coverage/
+.nyc_output/
+playwright-report/
+blob-report/
+test-results/
+allure-results/
+allure-report/
+
+# Tool caches
+.cache/
+.eslintcache
+.stylelintcache
+*.pid
+*.pid.lock
+
+# Logs
+logs/
+*.log
+pnpm-debug.log*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local environment and secrets; sanitized templates stay tracked
+.env
+.env.*
+!.env.example
+!.env.*.example
+.envrc
+.direnv/
+.secrets/
+*.secret
+*.secrets
+*.pem
+*.key
+*.p12
+*.pfx
+!*.example.pem
+!*.example.key
+
+# WhatsApp authentication state and short-lived QR artifacts
+auth_info_baileys/
+baileys-auth/
+whatsapp-auth/
+.wwebjs_auth/
+.wwebjs_cache/
+**/whatsapp-qr*.png
+**/qr-code*.png
+
+# Local infrastructure state and database backups
+.data/
+.runtime/
+.volumes/
+docker-data/
+backups/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.dump
+*.backup
+*.sql.gz
+*.sql.zst
+
+# Temporary files
+/tmp/
+/temp/
+**/.tmp/
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Editors
+.idea/
+.fleet/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.code-workspace
+
+# Operating-system metadata
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+._*
+
