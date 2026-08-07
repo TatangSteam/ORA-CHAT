@@ -15,11 +15,13 @@ export default defineConfig({
     }
   },
   test: {
-    coverage: {
-      enabled: false
-    },
-    include: ['apps/**/*.test.ts', 'packages/**/*.test.ts'],
-    exclude: ['**/node_modules/**', '**/.next/**', '**/dist/**', '**/*.integration.test.ts'],
-    passWithNoTests: false
+    exclude: ['**/node_modules/**', '**/.next/**', '**/dist/**'],
+    include: [
+      'apps/**/*.integration.test.ts',
+      'packages/**/*.integration.test.ts',
+      'tests/integration/**/*.test.ts'
+    ],
+    passWithNoTests: false,
+    testTimeout: 15_000
   }
 });

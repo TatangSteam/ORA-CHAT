@@ -22,6 +22,7 @@ blob-report/
 test-results/
 allure-results/
 allure-report/
+sbom.cdx.json
 
 # Tool caches
 .cache/
@@ -105,4 +106,3 @@ Thumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 ._*
-

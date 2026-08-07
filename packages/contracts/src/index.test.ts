@@ -7,8 +7,6 @@ describe('foundation contracts', () => {
   });
 
   it('rejects unknown services', () => {
-    expect(() =>
-      healthResponseSchema.parse({ service: 'redis', status: 'live' })
-    ).toThrow();
+    expect(() => healthResponseSchema.parse({ service: 'redis', status: 'live' })).toThrow();
   });
 });

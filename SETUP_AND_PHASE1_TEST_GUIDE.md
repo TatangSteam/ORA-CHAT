@@ -112,7 +112,7 @@ Jangan mengerjakan semua perubahan sebagai satu paket. Tutup satu work package b
 | Urutan | Work package | Output minimum | Bukti penutupan |
 |---:|---|---|---|
 | 1 | F0-WP01 Monorepo | Workspace dan exact toolchain | **Selesai** di `work-packages/F0-WP01.md`. |
-| 2 | F0-WP02 Quality baseline | Formatter, integration convention, CI, license/dependency scan, SBOM | CI dari fresh install lulus. |
+| 2 | F0-WP02 Quality baseline | Formatter, integration convention, CI, license/dependency scan, SBOM | **Selesai**; frozen/full gate lokal lulus dan workflow siap. Remote CI menunggu repository. |
 | 3 | F0-WP03 Compose infrastructure | Service terpisah untuk web, API, worker, WhatsApp, PostgreSQL, queue server, MinIO, dan bootstrap | `docker compose config` serta health check lulus. |
 | 4 | F0-WP04 Database baseline | Prisma `7.9.1`, migration additive, PostgreSQL `18.4`, pgvector `0.8.6` | Migrate dari database kosong dan schema test lulus. |
 | 5 | F0-WP05 Queue foundation | BullMQ `6.0.7`, ioredis `5.11.1`, producer/worker, deterministic job ID | Restart queue/worker test lulus. |

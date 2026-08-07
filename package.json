@@ -12,16 +12,28 @@
   },
   "scripts": {
     "build": "corepack pnpm --recursive --sort --if-present build",
-    "check": "corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test && corepack pnpm build",
-    "lint": "eslint apps packages *.config.* --max-warnings=0",
-    "test": "vitest run",
+    "check": "corepack pnpm policy:check && corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test:unit && corepack pnpm test:integration && corepack pnpm license:scan && corepack pnpm dependency:audit && corepack pnpm sbom:generate && corepack pnpm build",
+    "check:ci": "corepack pnpm version:check && corepack pnpm check",
+    "dependency:audit": "corepack pnpm audit --audit-level=high",
+    "format": "prettier --write --no-error-on-unmatched-pattern \"apps/**/*.{ts,tsx,css,json}\" \"packages/**/*.{ts,tsx,json}\" \"scripts/**/*.{js,mjs,ts,json}\" \"tests/**/*.{ts,tsx,json}\" \".github/**/*.{yml,yaml}\" \"*.{json,mjs,ts,yaml,yml}\"",
+    "format:check": "prettier --check --no-error-on-unmatched-pattern \"apps/**/*.{ts,tsx,css,json}\" \"packages/**/*.{ts,tsx,json}\" \"scripts/**/*.{js,mjs,ts,json}\" \"tests/**/*.{ts,tsx,json}\" \".github/**/*.{yml,yaml}\" \"*.{json,mjs,ts,yaml,yml}\"",
+    "license:scan": "corepack pnpm licenses list --json | node scripts/check-licenses.mjs",
+    "lint": "eslint apps packages scripts tests *.config.* --no-error-on-unmatched-pattern --max-warnings=0",
+    "policy:check": "node scripts/check-project-policy.mjs",
+    "sbom:generate": "corepack pnpm sbom --sbom-format cyclonedx --sbom-spec-version 1.6 --sbom-type application --sbom-supplier RAHO --out sbom.cdx.json",
+    "test": "corepack pnpm test:unit",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:unit": "vitest run --config vitest.config.ts",
     "test:watch": "vitest",
-    "typecheck": "corepack pnpm --recursive --sort --if-present typecheck"
+    "typecheck": "corepack pnpm --recursive --sort --if-present typecheck",
+    "version:check": "node scripts/version-report.mjs --check",
+    "version:report": "node scripts/version-report.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@types/node": "24.0.15",
     "eslint": "10.8.0",
+    "prettier": "3.9.6",
     "typescript": "6.0.3",
     "typescript-eslint": "8.65.0",
     "vitest": "4.1.10"

@@ -1,11 +1,6 @@
 import { z } from 'zod';
 
-export const serviceNameSchema = z.enum([
-  'api',
-  'web',
-  'worker',
-  'whatsapp'
-]);
+export const serviceNameSchema = z.enum(['api', 'web', 'worker', 'whatsapp']);
 
 export const healthResponseSchema = z.object({
   service: serviceNameSchema,
