@@ -1,0 +1,396 @@
+name: ${COMPOSE_PROJECT_NAME:-raho-whatsapp-chatbot-v2}
+
+x-app-service: &app-service
+  image: raho/whatsapp-chatbot-v2-app:0.0.0
+  pull_policy: never
+  init: true
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=64m
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  stop_grace_period: 20s
+  networks:
+    - app
+    - data
+
+services:
+  web:
+    <<: *app-service
+    command:
+      - node
+      - apps/web/node_modules/next/dist/bin/next
+      - start
+      - apps/web
+      - --port
+      - '3000'
+      - --hostname
+      - 0.0.0.0
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: '1'
+    depends_on:
+      api:
+        condition: service_healthy
+        required: true
+    ports:
+      - target: 3000
+        published: ${WEB_PORT:-3000}
+        host_ip: 127.0.0.1
+        protocol: tcp
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    networks:
+      - app
+
+  api:
+    <<: *app-service
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.app
+    pull_policy: never
+    command:
+      - node
+      - apps/api/dist/server.js
+    environment:
+      AI_MASTER_KEY_FILE: /run/secrets/ai_master_key
+      AI_PRIVATE_HOST_ALLOWLIST: openclaw
+      AI_PRIVATE_PORT_ALLOWLIST: '18789'
+      API_PORT: '4000'
+      NODE_ENV: production
+      POSTGRES_DB: ${POSTGRES_DB:-raho_chatbot}
+      POSTGRES_HOST: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_USER: ${POSTGRES_USER:-raho_app}
+      REDIS_HOST: redis
+      REDIS_PASSWORD_FILE: /run/secrets/redis_password
+      WHATSAPP_INTERNAL_TOKEN_FILE: /run/secrets/whatsapp_internal_token
+      WHATSAPP_INTERNAL_URL: http://whatsapp:4020/internal/v1/qr
+      APPLICATION_HASH_KEY_FILE: /run/secrets/application_hash_key
+      BOOTSTRAP_ADMIN_PASSWORD_FILE: /run/secrets/bootstrap_admin_password
+      MINIO_ACCESS_KEY_FILE: /run/secrets/minio_api_access_key
+      MINIO_BUCKET_EXPORTS: raho-exports
+      MINIO_BUCKET_KNOWLEDGE: raho-knowledge
+      MINIO_BUCKET_QUARANTINE: raho-quarantine
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_REGION: us-east-1
+      MINIO_SECRET_KEY_FILE: /run/secrets/minio_api_secret_key
+    secrets:
+      - ai_master_key
+      - application_hash_key
+      - bootstrap_admin_password
+      - minio_api_access_key
+      - minio_api_secret_key
+      - postgres_password
+      - redis_password
+      - whatsapp_internal_token
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+        required: true
+      postgres:
+        condition: service_healthy
+        required: true
+      redis:
+        condition: service_healthy
+        required: true
+    ports:
+      - target: 4000
+        published: ${API_PORT:-4000}
+        host_ip: 127.0.0.1
+        protocol: tcp
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:4000/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  worker:
+    <<: *app-service
+    command:
+      - node
+      - apps/worker/dist/index.js
+    environment:
+      AI_MASTER_KEY_FILE: /run/secrets/ai_master_key
+      AI_PRIVATE_HOST_ALLOWLIST: openclaw
+      AI_PRIVATE_PORT_ALLOWLIST: '18789'
+      NODE_ENV: production
+      POSTGRES_DB: ${POSTGRES_DB:-raho_chatbot}
+      POSTGRES_HOST: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_USER: ${POSTGRES_USER:-raho_app}
+      MINIO_ACCESS_KEY_FILE: /run/secrets/minio_worker_access_key
+      MINIO_BUCKET_EXPORTS: raho-exports
+      MINIO_BUCKET_KNOWLEDGE: raho-knowledge
+      MINIO_BUCKET_QUARANTINE: raho-quarantine
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_REGION: us-east-1
+      MINIO_SECRET_KEY_FILE: /run/secrets/minio_worker_secret_key
+      RAHO_ENVIRONMENT: local
+      REDIS_HOST: redis
+      REDIS_PASSWORD_FILE: /run/secrets/redis_password
+      WHATSAPP_INTERNAL_TOKEN_FILE: /run/secrets/whatsapp_internal_token
+      WHATSAPP_SEND_INTERNAL_URL: http://whatsapp:4020/internal/v1/send
+      WORKER_HEALTH_PORT: '4010'
+    secrets:
+      - ai_master_key
+      - minio_worker_access_key
+      - minio_worker_secret_key
+      - postgres_password
+      - redis_password
+      - whatsapp_internal_token
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+        required: true
+      postgres:
+        condition: service_healthy
+        required: true
+      redis:
+        condition: service_healthy
+        required: true
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:4010/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  whatsapp:
+    <<: *app-service
+    command:
+      - node
+      - apps/whatsapp/dist/index.js
+    environment:
+      NODE_ENV: production
+      POSTGRES_DB: ${POSTGRES_DB:-raho_chatbot}
+      POSTGRES_HOST: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_USER: ${POSTGRES_USER:-raho_app}
+      WHATSAPP_AUTH_DIRECTORY: /var/lib/raho/whatsapp-auth/default
+      WHATSAPP_HEALTH_PORT: '4020'
+      WHATSAPP_INTERNAL_TOKEN_FILE: /run/secrets/whatsapp_internal_token
+      API_INTERNAL_URL: http://api:4000/internal/v1/whatsapp/inbound
+      WHATSAPP_TENANT_SLUG: default
+    secrets:
+      - postgres_password
+      - whatsapp_internal_token
+    volumes:
+      - whatsapp_auth:/var/lib/raho/whatsapp-auth
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+        required: true
+      postgres:
+        condition: service_healthy
+        required: true
+      redis:
+        condition: service_healthy
+        required: true
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:4020/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  postgres:
+    image: pgvector/pgvector:0.8.6-pg18-bookworm@sha256:691673308c99d2161ba298736f3147f1f22d79de2fb7ec93ae9b4afcab870b62
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-raho_chatbot}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_USER: ${POSTGRES_USER:-raho_app}
+    secrets:
+      - postgres_password
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - data
+
+  redis:
+    image: redis:8.8.0@sha256:234c902a2db49461a129e2d4aeff85b28cf20187ed274a67f6e50995fa713c7b
+    restart: unless-stopped
+    entrypoint:
+      - /bin/sh
+      - /usr/local/bin/raho-redis-entrypoint
+    secrets:
+      - redis_password
+    volumes:
+      - redis_data:/data
+      - ./infra/redis/redis-entrypoint.sh:/usr/local/bin/raho-redis-entrypoint:ro
+      - ./infra/redis/redis.conf:/etc/redis/raho-redis.conf:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - REDISCLI_AUTH="$$(cat /run/secrets/redis_password)" redis-cli ping | grep -qx PONG
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - data
+
+  minio:
+    image: raho/minio-full:2025-04-22-r1
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.minio
+    pull_policy: never
+    command:
+      - server
+      - /data
+      - --console-address
+      - :9001
+    restart: unless-stopped
+    read_only: true
+    environment:
+      MINIO_BROWSER: 'on'
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_root_user
+    secrets:
+      - minio_root_password
+      - minio_root_user
+    volumes:
+      - minio_data:/data
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - target: 9000
+        published: ${MINIO_API_PORT:-9000}
+        host_ip: 127.0.0.1
+        protocol: tcp
+      - target: 9001
+        published: ${MINIO_CONSOLE_PORT:-9001}
+        host_ip: 127.0.0.1
+        protocol: tcp
+    healthcheck:
+      test:
+        - CMD
+        - mc
+        - ready
+        - local
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - app
+      - data
+
+  minio-init:
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+    entrypoint:
+      - /bootstrap/bootstrap.sh
+    restart: 'no'
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      MC_CONFIG_DIR: /tmp/.mc
+    secrets:
+      - minio_api_access_key
+      - minio_api_parent_secret
+      - minio_api_secret_key
+      - minio_operator_access_key
+      - minio_operator_secret_key
+      - minio_root_password
+      - minio_root_user
+      - minio_worker_access_key
+      - minio_worker_parent_secret
+      - minio_worker_secret_key
+    volumes:
+      - ./infra/minio:/bootstrap:ro
+    depends_on:
+      minio:
+        condition: service_healthy
+        required: true
+    networks:
+      - data
+
+networks:
+  app:
+    driver: bridge
+  data:
+    driver: bridge
+    internal: true
+
+volumes:
+  minio_data:
+  postgres_data:
+  redis_data:
+  whatsapp_auth:
+
+secrets:
+  ai_master_key:
+    file: ./.secrets/ai_master_key
+  application_hash_key:
+    file: ./.secrets/application_hash_key
+  bootstrap_admin_password:
+    file: ./.secrets/bootstrap_admin_password
+  minio_api_access_key:
+    file: ./.secrets/minio_api_access_key
+  minio_api_parent_secret:
+    file: ./.secrets/minio_api_parent_secret
+  minio_api_secret_key:
+    file: ./.secrets/minio_api_secret_key
+  minio_operator_access_key:
+    file: ./.secrets/minio_operator_access_key
+  minio_operator_secret_key:
+    file: ./.secrets/minio_operator_secret_key
+  minio_root_password:
+    file: ./.secrets/minio_root_password
+  minio_root_user:
+    file: ./.secrets/minio_root_user
+  minio_worker_access_key:
+    file: ./.secrets/minio_worker_access_key
+  minio_worker_parent_secret:
+    file: ./.secrets/minio_worker_parent_secret
+  minio_worker_secret_key:
+    file: ./.secrets/minio_worker_secret_key
+  postgres_password:
+    file: ./.secrets/postgres_password
+  redis_password:
+    file: ./.secrets/redis_password
+  whatsapp_internal_token:
+    file: ./.secrets/whatsapp_internal_token

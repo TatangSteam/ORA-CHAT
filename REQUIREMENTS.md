@@ -1,8 +1,8 @@
 # Product Requirements Document — WhatsApp Chatbot V2
 
 Status: **Approved untuk implementasi bertahap**  
-Versi: **1.9**  
-Tanggal: **6 Agustus 2026**  
+Versi: **1.10**
+Tanggal: **8 Agustus 2026**
 Folder target: `whatsapp-chatbot-v2`  
 Baseline: `whatsapp-chatbot/simple-whatsapp-chatbot` dan `whatsapp-chatbot/whatsapp-control-panel`
 
@@ -64,6 +64,11 @@ Perubahan utama versi 1.8:
 - Menambahkan AI-generated development flow dengan dependency map, work-package state machine, phase gate, dan Definition of Done.
 - Menetapkan urutan implementasi/test untuk foundation, messaging, provider AI, MinIO/RAG, migration, dan pilot.
 - Menambahkan stop condition, security checkpoint, UI-preservation flow, dan template prompt untuk AI coding agent.
+
+Perubahan utama versi 1.10:
+
+- Mengoreksi baseline Docker Compose dari versi `5.4.0` yang tidak pernah dirilis menjadi `5.3.1`, yaitu versi resmi yang tersedia bersama Docker Desktop/Engine baseline pada saat verifikasi Gate Fase 0.
+- Mencatat Docker Desktop `4.85.0`, Engine client/server `29.6.2`, dan Compose `5.3.1` sebagai evidence host lokal tanpa menjadikan Docker Desktop dependency produksi.
 
 Keputusan deployment antrean: seluruh stack lokal boleh didefinisikan dalam **satu file/proyek Docker Compose**, tetapi Redis dan process aplikasi tetap menjadi service/container terpisah. Redis dan BullMQ **bukan dua aplikasi yang digabung ke satu container**. Redis berjalan sebagai service/container tersendiri. BullMQ di-install sebagai dependency Node.js di image aplikasi; Express menggunakan `Queue` sebagai producer dan process worker menggunakan `Worker` sebagai consumer. Pada development, satu container worker boleh menangani beberapa queue. Pada production, worker dapat dipisah dan diskalakan per jenis pekerjaan tanpa membuat “container BullMQ” khusus.
 
@@ -758,7 +763,7 @@ Infrastructure dan service:
 | Service/tool | Versi baseline | Artifact awal | Catatan |
 |---|---:|---|---|
 | Docker Engine | `29.6.2` | Instalasi host | Minimum untuk environment Docker yang dikelola proyek; runtime OCI lain boleh dipakai bila Compose contract lulus. |
-| Docker Compose | `5.4.0` | CLI plugin | `compose.yaml` memakai specification modern tanpa field `version`. |
+| Docker Compose | `5.3.1` | CLI plugin | Koreksi evidence-driven dari target `5.4.0` yang tidak pernah dirilis; `compose.yaml` memakai specification modern tanpa field `version`. |
 | PostgreSQL | `18.4` | Image PostgreSQL/pgvector yang dipin digest | `SHOW server_version` harus cocok pada CI dan deployment evidence. |
 | pgvector | `0.8.6` | `pgvector/pgvector:0.8.6-pg18-bookworm` + digest | `SELECT extversion` harus cocok; tag tanpa versi extension dilarang. |
 | Valkey | `9.1.1` | `valkey/valkey:9.1.1-trixie` + digest | Kandidat utama yang direkomendasikan, berlisensi BSD-3-Clause, untuk datastore BullMQ. |

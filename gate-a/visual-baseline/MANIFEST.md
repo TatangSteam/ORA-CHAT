@@ -37,6 +37,43 @@ Data classification: **Synthetic fixture only**
 | `mobile-ai-settings.png` | `/ai-chatbot/settings` | 390x844 | `175c7f525b80e61be573c5e0edf01c6717e625a40592b62392de7df59476ac7f` |
 | `mobile-ai-knowledge.png` | `/ai-chatbot/knowledge` | 390x844 | `bf992861f87c69201f82c76cb146fceff6743a2340ca71ee32cbaf5d488dc984` |
 
+## Phase 4 implementation baselines
+
+Captured 10 Agustus 2026 dari implementation UI dengan dynamic lists dimask agar comparison stabil.
+
+| File | Route | Viewport | SHA-256 |
+|---|---|---:|---|
+| `desktop-phase4-knowledge.png` | `/knowledge` | 1440x1200 | `b34ea761fe55b260b931ae31ed7fb5655d74b6fdb2f8bf773090b6acd8d5875f` |
+| `desktop-phase4-documents.png` | `/documents` | 1440x1200 | `0baeb6369727b66680600f9c94fb8ae19fa0c55d5d31f0ea9427542d229c4dfb` |
+| `desktop-phase4-ai-search.png` | `/ai-search` | 1440x1200 | `bdb333c79be8c7141ea1b6c71b45c526aee237455195d92c9c4f810b60d8c7b2` |
+| `mobile-phase4-knowledge.png` | `/knowledge` | 390x844 | `4408e775664e74dcc836132615dacb7ec21c56bb48446ab6083e58a49fa4caf3` |
+| `mobile-phase4-documents.png` | `/documents` | 390x844 | `f0cf3e2a312d9b64e2a22bc9507980a28b35f85f79130f56dcb910ccfc93b4bb` |
+| `mobile-phase4-ai-search.png` | `/ai-search` | 390x844 | `fce9735807aece32e5ff1e7a12edb41763d52c574fdfe38f4b626985786bf287` |
+
+## Phase 5 implementation baselines
+
+Captured 10 Agustus 2026 dari AI operations UI dengan dynamic metrics dan lists dimask agar comparison stabil.
+
+| File | Route | Viewport | SHA-256 |
+|---|---|---:|---|
+| `desktop-phase5-ai-operations.png` | `/ai-operations` | 1440x1200 | `1417b2d0ac1a3653350ebaa89bef6d739b75b773580a6acc56797237792ad009` |
+| `desktop-phase5-ai-analytics.png` | `/ai-analytics` | 1440x1200 | `cc8400c75eee20897b566d5f86e8b6b7239bae51b54609edf5b09e2847d83440` |
+| `desktop-phase5-ai-readiness.png` | `/ai-readiness` | 1440x1200 | `f2f180295d5461a0c861b91181755b89e45c5e45425f9d0868a70d175a1d9f0d` |
+| `mobile-phase5-ai-operations.png` | `/ai-operations` | 390x844 | `682b8519e71a8f7d3c24706e6819f1fbcb584c97252f957d7e9a20ea75aa68bb` |
+| `mobile-phase5-ai-analytics.png` | `/ai-analytics` | 390x844 | `ad4504d9c8179c4f2312d51967b60faa232b6e5fe0dc65019dce12f3e172c7e9` |
+| `mobile-phase5-ai-readiness.png` | `/ai-readiness` | 390x844 | `fe9a6bdc09eb2ed528d7ea5b589d35049a976b6a438975ed2e0532ee88df7326` |
+
+## Phase 6 implementation baselines
+
+Captured 10 Agustus 2026 dari template dan compose UI. Daftar template dinamis dimask agar comparison stabil.
+
+| File | Route | Viewport | SHA-256 |
+|---|---|---:|---|
+| `desktop-phase6-templates.png` | `/templates` | 1440x1200 | `ec138cc260845b9c6a72824e1237b058057d66c80ea927150cc53a77a651fa7c` |
+| `desktop-phase6-compose.png` | `/compose` | 1440x1200 | `be86856a3088b1d0ddf23890fad16347bbc91e57344731e7420cc5470491c373` |
+| `mobile-phase6-templates.png` | `/templates` | 390x844 | `a65949bd289fab1bbb64d9e5c09fff6dba3ddb0bafe9e0db2200a2de52d2dc47` |
+| `mobile-phase6-compose.png` | `/compose` | 390x844 | `95d975875527ab8ef5bc8c403a912bfe1c2280cb0e0da0e3665b0d6113febf6b` |
+
 ## Limitation
 
 - Screenshot menunjukkan visual dan state fixture, bukan bukti integrasi backend production.
@@ -44,4 +81,3 @@ Data classification: **Synthetic fixture only**
 - Interaction state seperti mobile menu terbuka, dialog destructive, QR countdown, dan message detail tertentu memerlukan baseline tambahan saat fitur terkait mulai diport.
 - Screenshot menggunakan viewport, bukan emulasi device/OS tertentu.
 - Pixel difference dipakai sebagai sinyal review. Accessibility, text wrapping, responsive correctness, dan requirement baru tetap lebih penting daripada persamaan pixel mutlak.
-

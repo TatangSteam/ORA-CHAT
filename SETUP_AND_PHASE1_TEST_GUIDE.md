@@ -1,14 +1,14 @@
 # Setup dan Pengujian Fase 1 — WhatsApp Chatbot V2
 
-Status: **Panduan aktif; Fase 1 belum diimplementasikan**  
-Versi: **1.0**  
+Status: **Panduan aktif; F0/F1 functional complete, formal gate menunggu container scan**
+Versi: **1.1**
 Tanggal: **7 Agustus 2026**
 
 ## 1. Tujuan dan aturan status
 
 Panduan ini menjelaskan urutan dari setup mesin sampai keputusan lulus/tidak lulus Fase 1. Perintah dibagi menjadi:
 
-- **Tersedia sekarang**: sudah ada setelah F0-WP01 dan dapat dijalankan.
+- **Tersedia sekarang**: sudah ada setelah F0-WP03 dan dapat dijalankan.
 - **Target Fase 0/Fase 1**: kontrak yang wajib dibuat oleh work package berikutnya; jangan menganggap perintah tersebut sudah tersedia sebelum script-nya benar-benar ada.
 
 Fase 1 tidak boleh dimulai sebelum semua F0-WP01 sampai F0-WP08 selesai dan Gate Fase 0 lulus.
@@ -19,11 +19,11 @@ Baseline yang wajib dipakai:
 
 | Komponen | Target | Kondisi mesin pada 7 Agustus 2026 | Tindakan |
 |---|---:|---:|---|
-| Node.js | `24.18.0` | `24.16.0` | Upgrade sebelum CI/infrastruktur dinyatakan valid. |
+| Node.js | `24.18.0` | `24.18.0` | Sesuai. |
 | Corepack | Tersedia | `0.35.0` | Siap. |
 | pnpm | `11.20.0` | `11.20.0` | Siap melalui Corepack. |
-| Docker Engine | `29.6.2` | `29.5.3` | Upgrade sebelum F0-WP03. |
-| Docker Compose | `5.4.0` | `5.1.4` | Upgrade sebelum F0-WP03. |
+| Docker Engine | `29.6.2` | `29.6.2` client/server | Cocok setelah upgrade Docker Desktop `4.85.0` pada 8 Agustus 2026. |
+| Docker Compose | `5.3.1` | `5.3.1` | Cocok; baseline `5.4.0` dikoreksi karena release tersebut tidak tersedia. |
 
 Verifikasi dari PowerShell:
 
@@ -41,10 +41,10 @@ Expected setelah upgrade:
 Node: 24.18.0
 pnpm: 11.20.0
 Docker client/server: 29.6.2
-Docker Compose: 5.4.0
+Docker Compose: 5.3.1
 ```
 
-Jangan melanjutkan ke validasi infrastruktur bila Docker daemon tidak aktif atau versi target belum cocok. Docker Desktop tidak wajib; engine/runtime lain boleh dipakai jika contract Compose yang sama lulus.
+Jangan melanjutkan ke runtime validation bila Docker daemon tidak aktif. Versi host yang belum cocok boleh dipakai untuk functional development bila deviasi dicatat dan contract Compose lulus, tetapi exact-version Gate Fase 0 tetap gagal sampai versi target cocok. Docker Desktop tidak wajib; engine/runtime lain boleh dipakai jika contract Compose yang sama lulus.
 
 ## 3. Step 2 — Masuk ke proyek dan install deterministik
 
@@ -62,7 +62,7 @@ Kriteria lulus:
 - Tidak ada dependency yang memakai range mengambang.
 - Build script yang diizinkan hanya package yang tercatat di `allowBuilds`; saat ini hanya `esbuild`.
 
-Jangan membuat atau mengisi `.env` sebelum `.env.example` resmi dibuat pada work package infrastruktur. File secret lokal tidak boleh dikomit.
+`.env.example` hanya memuat konfigurasi non-secret. Buat credential lokal acak melalui `corepack pnpm secrets:init`; file pada `.secrets/` tidak boleh dikomit.
 
 ## 4. Step 3 — Verifikasi scaffold yang sudah tersedia
 
@@ -72,7 +72,7 @@ Jalankan:
 corepack pnpm check
 ```
 
-Perintah tersebut menjalankan lint, typecheck, unit test, dan production build. Baseline F0-WP01 yang telah terbukti adalah 2 test file/3 test dan build untuk seluruh workspace.
+Perintah tersebut menjalankan policy, format, lint, typecheck, unit/integration/Compose contract test, license/dependency scan, SBOM, dan production build.
 
 Smoke test manual scaffold saat ini:
 
@@ -103,7 +103,7 @@ Expected API:
 }
 ```
 
-Buka `http://localhost:3000`. Saat ini halaman tersebut hanya App Router foundation, bukan UI Fase 1.
+Buka `http://localhost:3000/login`. App Shell Fase 1 menyediakan login, overview, session, dan safety.
 
 ## 5. Step 4 — Selesaikan Fase 0 secara berurutan
 
@@ -113,25 +113,28 @@ Jangan mengerjakan semua perubahan sebagai satu paket. Tutup satu work package b
 |---:|---|---|---|
 | 1 | F0-WP01 Monorepo | Workspace dan exact toolchain | **Selesai** di `work-packages/F0-WP01.md`. |
 | 2 | F0-WP02 Quality baseline | Formatter, integration convention, CI, license/dependency scan, SBOM | **Selesai**; frozen/full gate lokal lulus dan workflow siap. Remote CI menunggu repository. |
-| 3 | F0-WP03 Compose infrastructure | Service terpisah untuk web, API, worker, WhatsApp, PostgreSQL, queue server, MinIO, dan bootstrap | `docker compose config` serta health check lulus. |
-| 4 | F0-WP04 Database baseline | Prisma `7.9.1`, migration additive, PostgreSQL `18.4`, pgvector `0.8.6` | Migrate dari database kosong dan schema test lulus. |
-| 5 | F0-WP05 Queue foundation | BullMQ `6.0.7`, ioredis `5.11.1`, producer/worker, deterministic job ID | Restart queue/worker test lulus. |
-| 6 | F0-WP06 MinIO foundation | MinIO `RELEASE.2025-04-22T22-12-26Z`, Console `v1.7.6`, bootstrap idempotent | Bucket, object, versioning, lifecycle, dan IAM smoke test lulus. |
-| 7 | F0-WP07 Shared contracts | Error envelope, pagination, request metadata, health, dan enum domain | Contract test dipakai lintas app. |
-| 8 | F0-WP08 App Shell | Design token/layout lama dipindahkan tanpa redesign | Visual baseline comparison lulus. |
+| 3 | F0-WP03 Compose infrastructure | Service terpisah untuk web, API, worker, WhatsApp, PostgreSQL, queue server, MinIO, dan bootstrap | **Selesai**; Compose contract, build, tujuh health check, init completion, exact service versions, dan secret-log scan lulus. |
+| 4 | F0-WP04 Database baseline | Prisma `7.9.1`, migration additive, PostgreSQL `18.4`, pgvector `0.8.6` | **Selesai**; migrate/schema/append-only audit test lulus. |
+| 5 | F0-WP05 Queue foundation | BullMQ `6.0.7`, ioredis `5.11.1`, producer/worker, deterministic job ID | **Selesai**; restart queue/worker test lulus. |
+| 6 | F0-WP06 MinIO foundation | MinIO `RELEASE.2025-04-22T22-12-26Z`, Console `v1.7.6`, bootstrap idempotent | **Selesai untuk local**; capability smoke lulus, production security exception tetap wajib. |
+| 7 | F0-WP07 Shared contracts | Error envelope, pagination, request metadata, health, dan enum domain | **Selesai**; contract test dipakai lintas app. |
+| 8 | F0-WP08 App Shell | Design token/layout lama dipindahkan tanpa redesign | **Selesai**; visual dan accessibility comparison lulus. |
 
 Keputusan queue yang telah disetujui menggunakan Redis OSS `8.8.0` AGPLv3. Redis tetap satu service/container tersendiri. BullMQ adalah dependency pada API/worker dan bukan container terpisah.
 
 ## 6. Step 5 — Validasi Gate Fase 0
 
-Setelah F0-WP03 tersedia, command contract minimum harus berbentuk seperti berikut. Nama profile/script final wajib dikunci dalam work package terkait:
+F0-WP03 menyediakan command contract berikut:
 
 ```powershell
-docker compose config --quiet
-docker compose pull
-docker compose build --pull
-docker compose up -d
-docker compose ps
+corepack pnpm secrets:init
+docker compose --env-file .env.example config --quiet
+docker compose --env-file .env.example pull --ignore-buildable
+docker compose --env-file .env.example build --pull
+docker compose --env-file .env.example up -d --wait --wait-timeout 120
+docker compose --env-file .env.example ps
+corepack pnpm test:infra
+corepack pnpm test:infra:runtime
 ```
 
 Kemudian jalankan script target yang harus dibuat F0-WP02 sampai F0-WP06:
@@ -139,11 +142,11 @@ Kemudian jalankan script target yang harus dibuat F0-WP02 sampai F0-WP06:
 ```powershell
 corepack pnpm test:integration
 corepack pnpm test:infra
-corepack pnpm scan:licenses
-corepack pnpm scan:dependencies
+corepack pnpm license:scan
+corepack pnpm dependency:audit
 corepack pnpm scan:containers
-corepack pnpm report:versions
-corepack pnpm sbom
+corepack pnpm version:report
+corepack pnpm sbom:generate
 ```
 
 Gate Fase 0 lulus hanya jika:
@@ -155,7 +158,7 @@ Gate Fase 0 lulus hanya jika:
 - Restart Redis/worker tidak menghilangkan durable state PostgreSQL.
 - Lint, typecheck, unit, integration, license scan, container scan, version report, dan SBOM mempunyai evidence.
 
-Jika satu butir gagal, Fase 1 belum boleh dimulai.
+Hasil 8 Agustus 2026: functional dan host-version gate lulus. Gate keseluruhan hanya menunggu container scan yang memerlukan persetujuan eksplisit atas transfer metadata/layer image ke Docker Scout. Lihat `work-packages/F0-GATE.md`.
 
 ## 7. Step 6 — Implementasikan Fase 1 dalam work package kecil
 
@@ -192,7 +195,7 @@ Aturan fixture:
 
 ## 9. Step 8 — Jalankan test otomatis Fase 1
 
-Script berikut adalah **target Fase 1** dan belum tersedia sekarang:
+Script berikut tersedia untuk validasi Fase 1:
 
 ```powershell
 corepack pnpm lint
@@ -203,6 +206,9 @@ corepack pnpm test:e2e
 corepack pnpm test:security
 corepack pnpm test:visual
 corepack pnpm build
+corepack pnpm test:retention
+corepack pnpm test:recovery
+corepack pnpm test:phase1:functional
 ```
 
 ### 9.1 Auth dan session

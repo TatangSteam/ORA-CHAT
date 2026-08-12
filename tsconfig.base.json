@@ -14,9 +14,12 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "paths": {
+      "@raho/ai": ["./packages/ai/src/index.ts"],
       "@raho/config": ["./packages/config/src/index.ts"],
       "@raho/contracts": ["./packages/contracts/src/index.ts"],
       "@raho/db": ["./packages/db/src/index.ts"],
+      "@raho/queue": ["./packages/queue/src/index.ts"],
+      "@raho/storage": ["./packages/storage/src/index.ts"],
       "@raho/testing": ["./packages/testing/src/index.ts"],
       "@raho/ui": ["./packages/ui/src/index.ts"]
     }

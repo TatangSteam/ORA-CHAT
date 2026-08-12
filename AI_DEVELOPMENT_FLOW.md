@@ -1,8 +1,8 @@
 # AI-Generated Development Flow — WhatsApp Chatbot V2
 
-Status: **Aktif — Gate A passed, F0-WP02 selesai**  
-Versi: **1.4**  
-Tanggal: **7 Agustus 2026**  
+Status: **Aktif — F0–F6 functional complete; formal release gate blocked oleh unmitigated container vulnerabilities**
+Versi: **1.5**
+Tanggal: **9 Agustus 2026**
 Input utama: [REQUIREMENTS.md](./REQUIREMENTS.md) dan [ERD.md](./ERD.md)  
 Target: AI coding agent dapat mengimplementasikan aplikasi secara bertahap, dapat diuji, dan tidak mengubah UI lama secara berlebihan.
 
@@ -234,7 +234,7 @@ Artifact:
 
 ## 8. Fase 0 — Foundation dan local platform
 
-Status eksekusi: **F0-WP01 dan F0-WP02 selesai**. Work package aktif berikutnya adalah F0-WP03; Fase 1 belum dimulai.
+Status eksekusi: **F0-WP01 sampai F0-WP08 selesai**. Functional gate lokal dan host-version gate lulus pada 8 Agustus 2026. Authorized Docker Scout scan pada 11 Agustus 2026 selesai, tetapi Gate Fase 0 tetap **Blocked oleh unmitigated container vulnerabilities**: lima image menghasilkan total 31 Critical dan 110 High occurrence. Evidence berada di `work-packages/F0-GATE.md` dan `docs/security/CONTAINER_VULNERABILITY_INVENTORY.md`.
 
 ### Urutan implementasi
 
@@ -292,6 +292,8 @@ flowchart LR
 
 ## 9. Fase 1 — Auth, RBAC, audit, dan operational shell
 
+Status eksekusi: **Functional complete; formal gate blocked oleh inherited F0 unmitigated container vulnerabilities**. F1-WP01 sampai F1-WP08 Done; auth/RBAC/audit, retention, QR ephemeral Baileys, worker safety enforcement, permission/IDOR matrix, SSE replay, explicit metric availability, recovery/UAT, serta visual/accessibility regression telah lulus. Evidence rinci berada pada `work-packages/F1-WP01.md` sampai `F1-WP08.md` dan `work-packages/F1-GATE.md`.
+
 ### Work package minimum
 
 1. Admin user, tenant, membership, seed/bootstrap admin tanpa password hardcoded.
@@ -312,6 +314,8 @@ flowchart LR
 - Visual regression halaman P0 berada dalam tolerance yang disetujui.
 
 ## 10. Fase 2 — Messaging parity dan durable outbox
+
+Status eksekusi: **Functional complete; formal gate blocked oleh inherited F0 unmitigated container vulnerabilities**. F2-WP01 sampai F2-WP08 Done; contact/conversation, inbound dedupe, transactional compose, durable outbox recovery, handoff, ordered rules, operational UI, OpenAPI, IDOR/security, visual/accessibility, dan failure-injection acceptance telah lulus. Evidence rinci berada pada `work-packages/F2-WP01.md` sampai `F2-WP08.md` dan `work-packages/F2-GATE.md`.
 
 ### Alur message outbound
 
@@ -361,6 +365,8 @@ sequenceDiagram
 
 ## 11. Fase 3 — AI configuration dan multi-provider adapter
 
+Status eksekusi: **Functional complete; formal gate blocked oleh inherited F0 unmitigated container vulnerabilities**. F3-WP01 sampai F3-WP08 Done; vendor-neutral contract, encrypted credential envelope, SSRF-safe pinned transport, native/compatible/OpenClaw adapter, capability/test/activation repository, UI chat dan embedding terpisah, OpenAPI, RBAC/IDOR, visual/accessibility, serta acceptance smoke telah lulus pada 10 Agustus 2026. Evidence rinci berada pada `work-packages/F3-WP01.md` sampai `F3-WP08.md` dan `work-packages/F3-GATE.md`.
+
 ### Urutan adapter
 
 ```mermaid
@@ -408,6 +414,8 @@ flowchart LR
 AI tidak boleh memakai real API key pada automated test. Fixture/mock menjadi default; live-provider smoke test dijalankan manual/secret CI environment dengan budget limit.
 
 ## 12. Fase 4 — Knowledge, MinIO document pipeline, dan RAG
+
+Status eksekusi: **Functional complete; formal gate blocked oleh inherited F0 unmitigated container vulnerabilities**. F4-WP01 sampai F4-WP09 Done; knowledge governance, authorized private document transfer, quarantine/validation/extraction, versioned pgvector indexing dengan atomic cutover, strict-grounding RAG, citation trace, inbound AI outbox/handoff, serta operational UI telah lulus pada 10 Agustus 2026. Evidence rinci berada pada `work-packages/F4-WP01.md` sampai `F4-WP09.md` dan `work-packages/F4-GATE.md`.
 
 ### Document pipeline
 
@@ -470,6 +478,8 @@ flowchart TD
 
 ## 13. Fase 5 — AI operations, migration, dan pilot
 
+Status eksekusi: **Functional complete; pilot gate blocked oleh unmitigated container vulnerabilities**. F5-WP01 sampai F5-WP09 Done; WP10 menyelesaikan authorized inventory pada 11 Agustus 2026. Kelima image gagal policy, dan hardened legacy MinIO exception ditolak karena authentication bypass S3 umum yang belum dipatch. Feedback, unanswered, evaluation, analytics, trace/alert, backup/restore, migration checkpoint, shadow read, cutover, rollback, dan UI telah lulus pada 10 Agustus 2026. Evidence rinci berada pada `work-packages/F5-WP01.md` sampai `F5-WP10.md`, `work-packages/F5-GATE.md`, dan `docs/security/CONTAINER_VULNERABILITY_INVENTORY.md`.
+
 ### Work package minimum
 
 1. Admin feedback dan append-only review audit.
@@ -499,6 +509,8 @@ Pilot hanya boleh dibuka ketika seluruh acceptance criteria PRD lulus, termasuk:
 ## 14. Fase 6 — Message template P1
 
 Fase ini dimulai setelah P0 pilot stabil kecuali pengguna menaikkan prioritasnya.
+
+Status eksekusi: **Functional complete; formal pilot blocked oleh unmitigated container vulnerabilities Fase 5**. Pengguna menaikkan prioritas Fase 6 pada 10 Agustus 2026. Template CRUD/version lifecycle, allowlisted variable preview, versioned checklist, atomic immutable compose snapshot, required-checklist outbox gate, template/compose UI, RBAC/IDOR/OpenAPI, visual, accessibility, dan runtime acceptance telah lulus. Evidence berada di `work-packages/F6-WP01.md` sampai `F6-WP07.md` dan `work-packages/F6-GATE.md`.
 
 1. Template CRUD dan version lifecycle.
 2. Variable schema dan preview rendering.

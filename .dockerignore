@@ -1,0 +1,16 @@
+.git
+.github
+.next
+.pnpm-store
+.secrets
+.runtime
+.data
+backups
+coverage
+dist
+node_modules
+playwright-report
+test-results
+*.log
+sbom.cdx.json
+gate-a/visual-baseline

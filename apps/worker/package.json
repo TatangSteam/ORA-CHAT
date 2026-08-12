@@ -5,9 +5,14 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@raho/contracts": "workspace:*"
+    "@raho/ai": "workspace:*",
+    "@raho/contracts": "workspace:*",
+    "@raho/db": "workspace:*",
+    "@raho/queue": "workspace:*",
+    "@raho/storage": "workspace:*"
   }
 }

@@ -10,9 +10,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@raho/ai": "workspace:*",
     "@raho/config": "workspace:*",
     "@raho/contracts": "workspace:*",
+    "@raho/db": "workspace:*",
+    "@raho/queue": "workspace:*",
+    "@raho/storage": "workspace:*",
     "express": "5.2.1",
+    "qrcode": "1.5.4",
     "zod": "4.4.3"
   },
   "devDependencies": {

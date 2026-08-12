@@ -12,7 +12,21 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc --noEmit"
+    "bootstrap": "tsx src/bootstrap.ts",
+    "build": "prisma generate && tsc -p tsconfig.build.json",
+    "migrate:deploy": "prisma migrate deploy",
+    "prisma:generate": "prisma generate",
+    "prisma:validate": "prisma validate",
+    "typecheck": "prisma generate && tsc --noEmit"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "7.9.1",
+    "@prisma/client": "7.9.1",
+    "pg": "8.22.0"
+  },
+  "devDependencies": {
+    "@types/pg": "8.20.4",
+    "prisma": "7.9.1",
+    "tsx": "4.20.3"
   }
 }

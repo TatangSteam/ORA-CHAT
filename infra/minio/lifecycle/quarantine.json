@@ -1,0 +1,9 @@
+{
+  "Rules": [
+    {
+      "Expiration": { "Days": 1 },
+      "ID": "expire-quarantine-after-one-day",
+      "Status": "Enabled"
+    }
+  ]
+}

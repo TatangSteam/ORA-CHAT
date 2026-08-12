@@ -1,6 +1,6 @@
 # Visual Baseline
 
-Screenshot pada folder ini diambil dari control panel lama pada Gate A dengan fixture runtime lokal. Data pada gambar adalah data mock, bukan data pelanggan.
+Folder ini menyimpan screenshot legacy Gate A untuk route yang belum diport dan baseline regression V2 untuk route Fase 1/2 yang parity review-nya sudah selesai. Semua data gambar berasal dari fixture lokal, bukan data pelanggan.
 
 Viewport baseline:
 
@@ -9,4 +9,4 @@ Viewport baseline:
 
 File PNG menjadi referensi visual, bukan pixel-perfect specification. Struktur navigasi, design token, hierarchy, density, dan pola interaksi utama harus dipertahankan pada Next.js V2.
 
-Daftar route, viewport, dan SHA-256 setiap gambar tersedia pada [MANIFEST.md](./MANIFEST.md).
+Daftar capture legacy tersedia pada [MANIFEST.md](./MANIFEST.md), sedangkan aturan baseline V2 tersedia pada [V2-MANIFEST.md](./V2-MANIFEST.md).

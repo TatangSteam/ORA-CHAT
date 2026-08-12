@@ -1,0 +1,1006 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "RAHO Admin and WhatsApp Internal API",
+    "version": "6.0.0-phase6",
+    "description": "Source contract for the versioned admin boundary. Browser mutations require the session cookie and X-CSRF-Token. Tenant context is derived only from the immutable session."
+  },
+  "servers": [{ "url": "/" }],
+  "paths": {
+    "/health/live": {
+      "get": {
+        "summary": "Process liveness",
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "summary": "Dependency readiness",
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "503": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/auth/csrf": {
+      "get": {
+        "summary": "Create pre-login CSRF token",
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/auth/login": {
+      "post": {
+        "summary": "Start opaque admin session",
+        "x-csrf": true,
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": {
+          "201": { "$ref": "#/components/responses/Success" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "429": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/me": {
+      "get": {
+        "summary": "Read session identity",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "401": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/auth/logout": {
+      "post": {
+        "summary": "Revoke current session",
+        "security": [{ "sessionCookie": [] }],
+        "x-csrf": true,
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/auth/password": {
+      "post": {
+        "summary": "Change password and revoke sessions",
+        "security": [{ "sessionCookie": [] }],
+        "x-csrf": true,
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/health/dependencies": {
+      "get": {
+        "summary": "Read dependency detail",
+        "x-permission": "overview.read",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/overview": {
+      "get": {
+        "summary": "Read operations overview and messaging metrics",
+        "x-permission": "overview.read",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/events/stream": {
+      "get": {
+        "summary": "Stream tenant-scoped operational events",
+        "x-permission": "overview.read",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "description": "text/event-stream" } }
+      }
+    },
+    "/api/admin/v1/session": {
+      "get": {
+        "summary": "Read WhatsApp session state",
+        "x-permission": "session.read",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/session/qr": {
+      "get": {
+        "summary": "Read short-lived in-memory QR",
+        "x-permission": "session.manage",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": { "description": "Ephemeral image/png" },
+          "503": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/session/reconnect": {
+      "post": {
+        "summary": "Reconnect WhatsApp",
+        "x-permission": "session.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/session/disconnect": {
+      "post": {
+        "summary": "Disconnect WhatsApp and remove linked auth state",
+        "x-permission": "session.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/session/reset": {
+      "post": {
+        "summary": "Reset WhatsApp auth state",
+        "x-permission": "safety.reset",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/safety/stats": {
+      "get": {
+        "summary": "Read sending safety state",
+        "x-permission": "safety.read",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/safety/pause": {
+      "post": {
+        "summary": "Pause delivery",
+        "x-permission": "safety.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/safety/resume": {
+      "post": {
+        "summary": "Resume delivery",
+        "x-permission": "safety.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/safety/reset": {
+      "post": {
+        "summary": "Reset safety controls",
+        "x-permission": "safety.reset",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/audit": {
+      "get": {
+        "summary": "Read append-only audit trail",
+        "x-permission": "audit.read",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/ai/integration": {
+      "get": {
+        "summary": "Read active chat and embedding configuration",
+        "x-permission": "ai.settings.manage",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/ai/integration/activate": {
+      "post": {
+        "summary": "Activate a tested provider connection",
+        "x-permission": "ai.activate",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/ai/integration/deactivate": {
+      "post": {
+        "summary": "Deactivate chat or embedding",
+        "x-permission": "ai.activate",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/ai/provider-connections": {
+      "get": {
+        "summary": "List safe provider configuration without secrets",
+        "x-permission": "ai.settings.manage",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      },
+      "post": {
+        "summary": "Create provider connection",
+        "x-permission": "ai.settings.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": {
+          "201": { "$ref": "#/components/responses/Success" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/ai/provider-connections/{id}": {
+      "post": {
+        "summary": "Update provider configuration and require a new test",
+        "x-permission": "ai.settings.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Id" },
+          { "$ref": "#/components/parameters/Csrf" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/ai/provider-connections/{id}/credential": {
+      "post": {
+        "summary": "Replace a write-only provider credential",
+        "x-permission": "ai.settings.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Id" },
+          { "$ref": "#/components/parameters/Csrf" }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/ai/provider-connections/{id}/credential/delete": {
+      "post": {
+        "summary": "Revoke and delete a provider credential binding",
+        "x-permission": "ai.settings.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Id" },
+          { "$ref": "#/components/parameters/Csrf" }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/ai/provider-connections/{id}/test": {
+      "post": {
+        "summary": "Test provider server-side and cache capabilities",
+        "x-permission": "ai.settings.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Id" },
+          { "$ref": "#/components/parameters/Csrf" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/ai/provider-connections/{id}/models": {
+      "get": {
+        "summary": "List provider models server-side",
+        "x-permission": "ai.settings.manage",
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/ai/knowledge/categories": {
+      "get": {
+        "summary": "List knowledge categories",
+        "x-permission": "knowledge.read",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      },
+      "post": {
+        "summary": "Create a knowledge category",
+        "x-permission": "knowledge.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": { "201": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/ai/knowledge": {
+      "get": {
+        "summary": "List governed knowledge items",
+        "x-permission": "knowledge.read",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      },
+      "post": {
+        "summary": "Create a knowledge draft",
+        "x-permission": "knowledge.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": { "201": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/ai/knowledge/{id}": {
+      "post": {
+        "summary": "Update a draft or create a successor version",
+        "x-permission": "knowledge.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/ai/knowledge/{id}/lifecycle": {
+      "post": {
+        "summary": "Review, approve, publish, or archive a knowledge version",
+        "x-permission": "knowledge.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/ai/documents": {
+      "get": {
+        "summary": "List private knowledge documents",
+        "x-permission": "knowledge.read",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      },
+      "post": {
+        "summary": "Stream a document to private quarantine",
+        "x-permission": "knowledge.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": {
+          "202": { "$ref": "#/components/responses/Success" },
+          "413": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/ai/documents/{id}/download": {
+      "get": {
+        "summary": "Proxy an authorized private object download",
+        "x-permission": "knowledge.read",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": { "description": "Private document stream" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/ai/documents/{id}/retry": {
+      "post": {
+        "summary": "Retry a failed document pipeline",
+        "x-permission": "knowledge.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/ai/documents/{id}/archive": {
+      "post": {
+        "summary": "Archive a knowledge document",
+        "x-permission": "knowledge.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/ai/search/test": {
+      "post": {
+        "summary": "Test tenant-scoped active-index retrieval",
+        "x-permission": "knowledge.read",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/ai/playground": {
+      "post": {
+        "summary": "Run strict-grounding RAG without sending",
+        "x-permission": "knowledge.read",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/ai/prompts": {
+      "get": {
+        "summary": "List versioned prompts",
+        "x-permission": "ai.settings.manage",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      },
+      "post": {
+        "summary": "Publish a new prompt version",
+        "x-permission": "ai.settings.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": { "201": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/ai/traces": {
+      "get": {
+        "summary": "List append-only grounded-answer traces",
+        "x-permission": "ai.analytics.read",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/ai/traces/{id}/feedback": {
+      "post": {
+        "summary": "Create or revise an admin review with append-only audit",
+        "x-permission": "knowledge.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Id" },
+          { "$ref": "#/components/parameters/Csrf" }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/ai/unanswered": {
+      "get": {
+        "summary": "List tenant-scoped unanswered aggregates",
+        "x-permission": "ai.analytics.read",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/ai/unanswered/{id}/draft": {
+      "post": {
+        "summary": "Convert an unanswered aggregate into a governed knowledge draft",
+        "x-permission": "knowledge.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Id" },
+          { "$ref": "#/components/parameters/Csrf" }
+        ],
+        "responses": { "201": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/ai/test-cases": {
+      "get": {
+        "summary": "List bounded AI evaluation cases and latest runs",
+        "x-permission": "ai.analytics.read",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      },
+      "post": {
+        "summary": "Create an AI evaluation case",
+        "x-permission": "ai.settings.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": { "201": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/ai/test-cases/import": {
+      "post": {
+        "summary": "Import a bounded evaluation dataset",
+        "x-permission": "ai.settings.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": { "201": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/ai/test-runs": {
+      "post": {
+        "summary": "Run a no-send evaluation batch",
+        "x-permission": "ai.settings.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": { "201": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/ai/analytics": {
+      "get": {
+        "summary": "Read PII-free AI, provider, cache, handoff and queue analytics",
+        "x-permission": "ai.analytics.read",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/ai/release-readiness": {
+      "get": {
+        "summary": "List fail-closed release readiness evidence",
+        "x-permission": "ai.analytics.read",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/ai/release-readiness/evaluate": {
+      "post": {
+        "summary": "Evaluate runtime and external pilot gates",
+        "x-permission": "ai.activate",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": { "201": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/ai/release-readiness/{id}/decision": {
+      "post": {
+        "summary": "Approve a ready pilot percentage or pause it",
+        "x-permission": "ai.activate",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Id" },
+          { "$ref": "#/components/parameters/Csrf" }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/ai/alerts": {
+      "get": {
+        "summary": "List safe operational alerts",
+        "x-permission": "safety.read",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/ai/alerts/{id}/acknowledge": {
+      "post": {
+        "summary": "Acknowledge an operational alert with audit reason",
+        "x-permission": "safety.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Id" },
+          { "$ref": "#/components/parameters/Csrf" }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/templates": {
+      "get": {
+        "summary": "List tenant-scoped internal message templates and version history",
+        "x-permission": "templates.read",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      },
+      "post": {
+        "summary": "Create a message template with its first draft version",
+        "x-permission": "templates.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": {
+          "201": { "$ref": "#/components/responses/Success" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/templates/preview": {
+      "post": {
+        "summary": "Render a server-authoritative template preview",
+        "x-permission": "templates.read",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/templates/{id}": {
+      "get": {
+        "summary": "Read a tenant-owned template and immutable version history",
+        "x-permission": "templates.read",
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/templates/{id}/versions": {
+      "post": {
+        "summary": "Create a new draft without mutating prior versions",
+        "x-permission": "templates.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Id" },
+          { "$ref": "#/components/parameters/Csrf" }
+        ],
+        "responses": {
+          "201": { "$ref": "#/components/responses/Success" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/templates/{id}/publish": {
+      "post": {
+        "summary": "Publish the current draft with audit reason",
+        "x-permission": "templates.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Id" },
+          { "$ref": "#/components/parameters/Csrf" }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/templates/{id}/duplicate": {
+      "post": {
+        "summary": "Duplicate a template as a new draft",
+        "x-permission": "templates.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Id" },
+          { "$ref": "#/components/parameters/Csrf" }
+        ],
+        "responses": { "201": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/templates/{id}/lifecycle": {
+      "post": {
+        "summary": "Activate, deactivate, or archive a template",
+        "x-permission": "templates.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Id" },
+          { "$ref": "#/components/parameters/Csrf" }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/contacts": {
+      "get": {
+        "summary": "List normalized contacts",
+        "x-permission": "contacts.read",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      },
+      "post": {
+        "summary": "Create or resolve normalized contact",
+        "x-permission": "messages.send",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "201": { "$ref": "#/components/responses/Success" }
+        }
+      }
+    },
+    "/api/admin/v1/contacts/{id}": {
+      "get": {
+        "summary": "Read a tenant-owned contact",
+        "x-permission": "contacts.read",
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/conversations": {
+      "get": {
+        "summary": "List conversations with cursor pagination",
+        "x-permission": "messages.read",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/conversations/{id}/messages": {
+      "get": {
+        "summary": "Read immutable message timeline",
+        "x-permission": "messages.read",
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/messages": {
+      "post": {
+        "summary": "Create durable outbound message",
+        "x-permission": "messages.send",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Csrf" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "responses": {
+          "202": { "$ref": "#/components/responses/Success" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/messages/{id}": {
+      "get": {
+        "summary": "Read message and event history",
+        "x-permission": "messages.read",
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/outbox": {
+      "get": {
+        "summary": "List durable delivery state",
+        "x-permission": "messages.read",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/outbox/{id}/cancel": {
+      "post": {
+        "summary": "Cancel an eligible outbox item",
+        "x-permission": "messages.retry",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Id" },
+          { "$ref": "#/components/parameters/Csrf" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/outbox/{id}/retry": {
+      "post": {
+        "summary": "Retry a failed outbox item",
+        "x-permission": "messages.retry",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Id" },
+          { "$ref": "#/components/parameters/Csrf" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/outbox/{id}/reconcile": {
+      "post": {
+        "summary": "Manually reconcile unknown delivery",
+        "x-permission": "messages.retry",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Id" },
+          { "$ref": "#/components/parameters/Csrf" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/handoffs": {
+      "get": {
+        "summary": "List handoffs",
+        "x-permission": "handoffs.read",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      },
+      "post": {
+        "summary": "Create an idempotent active-reason handoff",
+        "x-permission": "handoffs.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "201": { "$ref": "#/components/responses/Success" }
+        }
+      }
+    },
+    "/api/admin/v1/handoffs/{id}/assign": {
+      "post": {
+        "summary": "Assign handoff to a tenant member",
+        "x-permission": "handoffs.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Id" },
+          { "$ref": "#/components/parameters/Csrf" }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/handoffs/{id}/resolve": {
+      "post": {
+        "summary": "Resolve handoff",
+        "x-permission": "handoffs.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Id" },
+          { "$ref": "#/components/parameters/Csrf" }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/api/admin/v1/chatbot/config": {
+      "get": {
+        "summary": "Read active rule configuration",
+        "x-permission": "chatbot.read",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      },
+      "post": {
+        "summary": "Save ordered rule draft",
+        "x-permission": "chatbot.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/chatbot/config/{id}/publish": {
+      "post": {
+        "summary": "Atomically publish a rule version",
+        "x-permission": "chatbot.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Id" },
+          { "$ref": "#/components/parameters/Csrf" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/chatbot/test": {
+      "post": {
+        "summary": "Evaluate rules without creating a recipient or outbox",
+        "x-permission": "chatbot.read",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      }
+    },
+    "/internal/v1/whatsapp/inbound": {
+      "post": {
+        "summary": "Ingest provider event idempotently",
+        "security": [{ "internalBearer": [] }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "202": { "$ref": "#/components/responses/Success" },
+          "401": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "sessionCookie": { "type": "apiKey", "in": "cookie", "name": "raho_session" },
+      "internalBearer": { "type": "http", "scheme": "bearer" }
+    },
+    "parameters": {
+      "Id": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "format": "uuid" }
+      },
+      "Csrf": {
+        "name": "X-CSRF-Token",
+        "in": "header",
+        "required": true,
+        "schema": { "type": "string", "minLength": 32 }
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": { "type": "string", "minLength": 8, "maxLength": 128 }
+      }
+    },
+    "schemas": {
+      "Meta": {
+        "type": "object",
+        "required": ["requestId", "traceId"],
+        "properties": {
+          "requestId": { "type": "string" },
+          "traceId": { "type": "string" },
+          "nextCursor": { "type": ["string", "null"], "format": "uuid" },
+          "hasMore": { "type": "boolean" }
+        }
+      },
+      "SuccessEnvelope": {
+        "type": "object",
+        "required": ["data", "meta"],
+        "properties": { "data": {}, "meta": { "$ref": "#/components/schemas/Meta" } }
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": ["error", "meta"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": { "code": { "type": "string" }, "message": { "type": "string" } }
+          },
+          "meta": { "$ref": "#/components/schemas/Meta" }
+        }
+      }
+    },
+    "responses": {
+      "Success": {
+        "description": "Versioned success envelope",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/SuccessEnvelope" } }
+        }
+      },
+      "Error": {
+        "description": "Safe error envelope",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+FROM quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e
+
+LABEL org.opencontainers.image.title="RAHO MinIO full-console" \
+      org.opencontainers.image.version="2025-04-22-r1" \
+      org.opencontainers.image.revision="0d7408f" \
+      org.opencontainers.image.source="https://github.com/minio/minio/tree/RELEASE.2025-04-22T22-12-26Z" \
+      org.opencontainers.image.licenses="AGPL-3.0-only"
+
+RUN mkdir -p /data && chown -R 1000:1000 /data
+
+USER 1000:1000
