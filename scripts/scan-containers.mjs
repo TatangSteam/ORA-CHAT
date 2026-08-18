@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import process from 'node:process';
 
@@ -32,6 +32,7 @@ const images = [
       .filter(Boolean)
   )
 ];
+rmSync('test-results/container-scan', { recursive: true, force: true });
 mkdirSync('test-results/container-scan', { recursive: true });
 
 const failures = [];

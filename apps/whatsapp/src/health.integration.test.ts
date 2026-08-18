@@ -98,4 +98,40 @@ describe('WhatsApp health foundation', () => {
     expect(disconnect.status).toBe(204);
     expect(actions).toEqual([`reconnect:${tenantId}`, `disconnect:${tenantId}`]);
   });
+
+  it('protects and dispatches composing presence without exposing it publicly', async () => {
+    const token = 'p'.repeat(64);
+    const calls: string[] = [];
+    const server = createWhatsAppHealthServer(() => true, {
+      token,
+      store: new EphemeralQrStore(),
+      presence: async (tenantId, recipientJid, state) => {
+        calls.push(`${tenantId}:${recipientJid}:${state}`);
+      }
+    });
+    activeServers.push(server);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Expected TCP address');
+    const url = `http://127.0.0.1:${address.port}/internal/v1/presence`;
+    const body = JSON.stringify({
+      tenantId: '01988c36-6880-7000-8000-000000000001',
+      recipientJid: '6281234567890@s.whatsapp.net',
+      state: 'composing'
+    });
+
+    expect(
+      await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body })
+    ).toMatchObject({ status: 401 });
+    expect(
+      await fetch(url, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body
+      })
+    ).toMatchObject({ status: 204 });
+    expect(calls).toEqual([
+      '01988c36-6880-7000-8000-000000000001:6281234567890@s.whatsapp.net:composing'
+    ]);
+  });
 });

@@ -96,15 +96,15 @@ export default function AiOperationsPage() {
         <h2>Jawaban AI terbaru</h2>
         <div className="stack-list">
           {traces.map((trace) => (
-            <article className="list-row" key={trace.id}>
-              <div>
+            <article className="list-row operations-row" key={trace.id}>
+              <div className="operations-copy">
                 <strong>{trace.status}</strong>
                 <p>{trace.answer}</p>
                 <small>
                   {trace.latencyMs} ms · {trace.fallbackReason ?? 'grounded'}
                 </small>
               </div>
-              <div className="action-row">
+              <div aria-label="Aksi review jawaban" className="action-row operations-actions">
                 <button
                   className="secondary-button"
                   onClick={() => void review(trace.id, 'correct', 'correct')}
@@ -137,8 +137,8 @@ export default function AiOperationsPage() {
         <h2>Pertanyaan belum terjawab</h2>
         <div className="stack-list">
           {unanswered.map((question) => (
-            <article className="list-row" key={question.id}>
-              <div>
+            <article className="list-row operations-row" key={question.id}>
+              <div className="operations-copy">
                 <strong>{question.representativeQuestion}</strong>
                 <p>
                   {question.occurrenceCount} occurrence · terakhir{' '}
@@ -154,7 +154,7 @@ export default function AiOperationsPage() {
                   </label>
                 ) : null}
               </div>
-              <div className="action-row">
+              <div className="action-row operations-actions unanswered-actions">
                 {draftId === question.id ? (
                   <button
                     className="primary-button"

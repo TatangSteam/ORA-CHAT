@@ -122,6 +122,29 @@ const matchRule = (
 export class PrismaMessagingRepository {
   public constructor(private readonly prisma: PrismaClient) {}
 
+  public async recentConversationContext(
+    tenantId: string,
+    conversationId: string,
+    excludeMessageId: string,
+    limit = 5
+  ): Promise<Array<{ role: 'customer' | 'assistant'; content: string }>> {
+    const rows = await this.prisma.message.findMany({
+      where: {
+        tenantId,
+        conversationId,
+        id: { not: excludeMessageId },
+        status: { notIn: ['failed', 'cancelled'] }
+      },
+      select: { direction: true, content: true },
+      orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
+      take: Math.min(5, Math.max(0, limit))
+    });
+    return rows.reverse().map((message) => ({
+      role: message.direction === 'incoming' ? 'customer' : 'assistant',
+      content: message.content.slice(0, 800)
+    }));
+  }
+
   public async listContacts(
     tenantId: string,
     query: { cursor?: string | undefined; limit: number; search?: string | undefined }

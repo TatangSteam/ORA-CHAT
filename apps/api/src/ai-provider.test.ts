@@ -1,3 +1,5 @@
+import { createServer } from 'node:http';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -117,19 +119,35 @@ describe('SSRF-safe provider URL', () => {
   });
 
   it('pins the validated DNS address and rejects redirects without following them', async () => {
-    const transport = new PinnedSafeHttpTransport({
-      resolver: async () => [{ address: '127.0.0.1', family: 4 }],
-      privateHostAllowlist: ['fixture'],
-      allowedPrivatePorts: [9]
+    const server = createServer((_request, response) => {
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end('{"data":[{"id":"model-a"}]}');
     });
-    await expect(
-      transport.request({
-        url: 'http://fixture:9/v1',
-        method: 'GET',
-        headers: {},
-        timeoutMs: 100
-      })
-    ).rejects.toBeDefined();
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Fixture server did not bind');
+    try {
+      const transport = new PinnedSafeHttpTransport({
+        resolver: async () => [{ address: '127.0.0.1', family: 4 }],
+        privateHostAllowlist: ['fixture'],
+        allowedPrivatePorts: [address.port]
+      });
+      await expect(
+        transport.request({
+          url: `http://fixture:${address.port}/v1/models`,
+          method: 'GET',
+          headers: {},
+          timeoutMs: 1_000
+        })
+      ).resolves.toMatchObject({
+        status: 200,
+        body: { data: [{ id: 'model-a' }] }
+      });
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve()))
+      );
+    }
   });
 });
 
@@ -163,6 +181,21 @@ describe('native and compatible provider adapter contracts', () => {
       expect(transport.requests.flatMap(({ headers }) => Object.keys(headers))).not.toContain(
         'cookie'
       );
+      if (provider === 'openai-compatible') {
+        expect(transport.requests[1]?.body).toMatchObject({
+          messages: [
+            {
+              role: 'system',
+              content: expect.stringContaining('"shouldHandoff" (boolean)')
+            },
+            {
+              role: 'user',
+              content: expect.stringContaining('OUTPUT FORMAT (required)')
+            }
+          ],
+          response_format: { type: 'json_object' }
+        });
+      }
     });
   }
 
@@ -197,6 +230,33 @@ describe('native and compatible provider adapter contracts', () => {
     await new AiProviderAdapter(runtime, transport).generateStructured('Halo');
     expect(transport.requests[0]?.body).not.toHaveProperty('temperature');
     expect(transport.requests[0]?.body).not.toHaveProperty('top_p');
+  });
+
+  it('accepts a valid structured response wrapped in a JSON Markdown fence', async () => {
+    const transport = new FixtureTransport([
+      {
+        status: 200,
+        headers: {},
+        body: {
+          choices: [
+            {
+              message: {
+                content:
+                  '```json\n{"answer":"Aman","status":"answered","shouldHandoff":false,"citations":["K1"]}\n```'
+              }
+            }
+          ],
+          model: 'model-a',
+          usage: {}
+        }
+      }
+    ]);
+
+    await expect(
+      new AiProviderAdapter(connection('openai-compatible'), transport).generateStructured('Halo')
+    ).resolves.toMatchObject({
+      output: { answer: 'Aman', status: 'answered', shouldHandoff: false, citations: ['K1'] }
+    });
   });
 
   for (const provider of [

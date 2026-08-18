@@ -39,6 +39,7 @@ model Tenant {
   knowledgeDocuments        KnowledgeDocument[]
   knowledgeObjects          KnowledgeStorageObject[]
   knowledgeChunks           KnowledgeChunk[]
+  knowledgeLexicalChunks    KnowledgeLexicalChunk[]
   aiPromptVersions          AiPromptVersion[]
   aiMessageTraces           AiMessageTrace[]
   aiResponseCaches          AiResponseCache[]
@@ -664,6 +665,7 @@ model KnowledgeItemVersion {
   publishedFor      KnowledgeItem?             @relation("KnowledgePublishedVersion")
   questionVariants  KnowledgeQuestionVariant[]
   chunks            KnowledgeChunk[]
+  lexicalChunks     KnowledgeLexicalChunk[]
 
   @@unique([itemId, version])
   @@index([tenantId, status, publishedAt(sort: Desc), id])
@@ -704,6 +706,7 @@ model KnowledgeDocument {
   tenant           Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   storageObjects   KnowledgeStorageObject[]
   chunks           KnowledgeChunk[]
+  lexicalChunks    KnowledgeLexicalChunk[]
 
   @@index([tenantId, state, createdAt(sort: Desc), id])
   @@index([tenantId, sha256, id])
@@ -753,6 +756,25 @@ model KnowledgeChunk {
   @@unique([indexVersionId, documentId, itemVersionId, sequence])
   @@index([tenantId, indexVersionId, id])
   @@map("knowledge_chunks")
+}
+
+model KnowledgeLexicalChunk {
+  id            String                @id @db.Uuid
+  tenantId      String                @map("tenant_id") @db.Uuid
+  documentId    String?               @map("document_id") @db.Uuid
+  itemVersionId String?               @map("item_version_id") @db.Uuid
+  sequence      Int
+  content       String                @db.Text
+  contentHash   String                @map("content_hash") @db.Char(64)
+  tokenEstimate Int                   @map("token_estimate")
+  createdAt     DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  tenant        Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  document      KnowledgeDocument?    @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  itemVersion   KnowledgeItemVersion? @relation(fields: [itemVersionId], references: [id], onDelete: Restrict)
+  sources       AiMessageSource[]
+
+  @@index([tenantId, id])
+  @@map("knowledge_lexical_chunks")
 }
 
 model AiPromptVersion {
@@ -807,20 +829,23 @@ model AiMessageTrace {
 }
 
 model AiMessageSource {
-  id        String         @id @db.Uuid
-  tenantId  String         @map("tenant_id") @db.Uuid
-  traceId   String         @map("trace_id") @db.Uuid
-  chunkId   String         @map("chunk_id") @db.Uuid
-  rank      Int
-  score     Float
-  label     String         @db.VarChar(32)
-  preview   String         @db.VarChar(500)
-  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
-  trace     AiMessageTrace @relation(fields: [traceId], references: [id], onDelete: Restrict)
-  chunk     KnowledgeChunk @relation(fields: [chunkId], references: [id], onDelete: Restrict)
+  id             String                 @id @db.Uuid
+  tenantId       String                 @map("tenant_id") @db.Uuid
+  traceId        String                 @map("trace_id") @db.Uuid
+  chunkId        String?                @map("chunk_id") @db.Uuid
+  lexicalChunkId String?                @map("lexical_chunk_id") @db.Uuid
+  rank           Int
+  score          Float
+  label          String                 @db.VarChar(32)
+  preview        String                 @db.VarChar(500)
+  createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  trace          AiMessageTrace         @relation(fields: [traceId], references: [id], onDelete: Restrict)
+  chunk          KnowledgeChunk?        @relation(fields: [chunkId], references: [id], onDelete: Restrict)
+  lexicalChunk   KnowledgeLexicalChunk? @relation(fields: [lexicalChunkId], references: [id], onDelete: Restrict)
 
   @@unique([traceId, rank])
   @@unique([traceId, chunkId])
+  @@unique([traceId, lexicalChunkId])
   @@index([tenantId, traceId, rank])
   @@map("ai_message_sources")
 }

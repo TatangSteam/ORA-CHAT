@@ -215,7 +215,13 @@ try {
   });
   if (secondMessage.response.status !== 202) throw new Error('Lease fixture create failed');
 
-  const aiSmoke = compose(['exec', '-T', 'api', 'node', 'apps/api/dist/messaging-smoke.js']);
+  const aiSmoke = compose([
+    'exec',
+    '-T',
+    'api',
+    '/nodejs/bin/node',
+    'apps/api/dist/messaging-smoke.js'
+  ]);
   const aiResult = JSON.parse(aiSmoke.stdout.trim().split('\n').at(-1));
   if (aiResult.status !== 'passed' || aiResult.source !== 'ai')
     throw new Error('AI outbox path failed');
@@ -224,7 +230,6 @@ try {
     '--rm',
     '--no-deps',
     'worker',
-    'node',
     'apps/worker/dist/delivery-smoke.js'
   ]);
   const deliveryResult = JSON.parse(delivered.stdout.trim().split('\n').at(-1));

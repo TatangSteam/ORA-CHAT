@@ -10,6 +10,7 @@ export interface QrProvider {
 export interface WhatsAppSessionController {
   reconnect(tenantId: string): Promise<void>;
   disconnect(tenantId: string): Promise<void>;
+  presence?(tenantId: string, recipientJid: string, state: 'composing' | 'paused'): Promise<void>;
 }
 
 export const readInternalToken = (): string => {
@@ -37,7 +38,9 @@ export class InternalWhatsAppQrProvider implements QrProvider, WhatsAppSessionCo
     private readonly endpoint = process.env.WHATSAPP_INTERNAL_URL ??
       'http://whatsapp:4020/internal/v1/qr',
     private readonly sessionEndpoint = process.env.WHATSAPP_SESSION_INTERNAL_URL ??
-      'http://whatsapp:4020/internal/v1/session'
+      'http://whatsapp:4020/internal/v1/session',
+    private readonly presenceEndpoint = process.env.WHATSAPP_PRESENCE_INTERNAL_URL ??
+      'http://whatsapp:4020/internal/v1/presence'
   ) {}
 
   public async get(tenantId: string): Promise<{ qr: string; expiresAt: Date } | null> {
@@ -58,6 +61,24 @@ export class InternalWhatsAppQrProvider implements QrProvider, WhatsAppSessionCo
 
   public disconnect(tenantId: string): Promise<void> {
     return this.control('disconnect', tenantId);
+  }
+
+  public async presence(
+    tenantId: string,
+    recipientJid: string,
+    state: 'composing' | 'paused'
+  ): Promise<void> {
+    const response = await fetch(this.presenceEndpoint, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${this.token}`,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({ tenantId, recipientJid, state }),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(2_000)
+    });
+    if (!response.ok) throw new Error('WhatsApp presence service is unavailable');
   }
 
   private async control(action: 'reconnect' | 'disconnect', tenantId: string): Promise<void> {

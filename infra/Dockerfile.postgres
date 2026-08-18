@@ -1,0 +1,30 @@
+FROM golang:1.25.11-trixie@sha256:56a4d6ead4365cd569ca388003bdce672e7ca7286513f96b44b03d3b5e79d26f AS gosu-build
+
+ARG GOSU_COMMIT=6456aaa0f3c854d199d0f037f068eb97515b7513
+
+WORKDIR /src
+
+RUN git clone https://github.com/tianon/gosu.git . \
+    && git checkout "${GOSU_COMMIT}" \
+    && CGO_ENABLED=0 go build -trimpath -ldflags='-d -w' -o /out/gosu .
+
+FROM pgvector/pgvector:0.8.6-pg18-bookworm@sha256:691673308c99d2161ba298736f3147f1f22d79de2fb7ec93ae9b4afcab870b62 AS patched
+
+COPY --from=gosu-build /out/gosu /usr/local/bin/gosu
+
+FROM scratch
+
+COPY --from=patched / /
+
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/lib/postgresql/18/bin \
+    GOSU_VERSION=1.19 \
+    LANG=en_US.utf8 \
+    PG_MAJOR=18 \
+    PG_VERSION=18.4-1.pgdg12+1 \
+    PGDATA=/var/lib/postgresql/18/docker
+
+VOLUME /var/lib/postgresql
+ENTRYPOINT ["docker-entrypoint.sh"]
+STOPSIGNAL SIGINT
+EXPOSE 5432
+CMD ["postgres"]

@@ -1212,33 +1212,53 @@ export const createApp = (options: AppOptions = {}): Express => {
       handoffTaskId: string | null;
     } | null = null;
     if (shouldRunAiAutomation(result)) {
-      const grounded = knowledgeRepository
-        ? await knowledgeRepository.answer(
+      await options.whatsappSessionController
+        ?.presence?.(parsed.data.tenantId, parsed.data.senderJid, 'composing')
+        .catch(() => undefined);
+      try {
+        const conversationContext = await messagingRepository
+          .recentConversationContext(
             parsed.data.tenantId,
-            parsed.data.content,
-            requestContext(request).meta.requestId
+            result.conversationId,
+            result.messageId,
+            5
           )
-        : {
-            id: null,
-            status: 'fallback' as const,
-            answer: result.automationFallback ?? 'Mohon tunggu, admin kami akan membantu Anda.',
-            shouldHandoff: true,
-            fallbackReason: 'knowledge_unavailable'
-          };
-      const automated = await messagingRepository.createAutomatedInboundResponse({
-        tenantId: parsed.data.tenantId,
-        conversationId: result.conversationId,
-        triggerMessageId: result.messageId,
-        content: grounded.answer,
-        shouldHandoff: grounded.shouldHandoff,
-        reasonCode: grounded.fallbackReason ?? 'ai_requested_handoff',
-        traceId: grounded.id,
-        now: new Date(parsed.data.occurredAt)
-      });
-      if (automated) {
-        aiAutomation = { traceId: grounded.id, ...automated };
-        await options.outboxEnqueuer
-          ?.enqueue(parsed.data.tenantId, automated.outboxMessageId)
+          .catch(() => []);
+        const grounded = knowledgeRepository
+          ? await knowledgeRepository.answer(
+              parsed.data.tenantId,
+              parsed.data.content,
+              requestContext(request).meta.requestId,
+              conversationContext
+            )
+          : {
+              id: null,
+              status: 'fallback' as const,
+              answer:
+                result.automationFallback ??
+                'Maaf, layanan informasi sedang tidak tersedia. Silakan coba kembali.',
+              shouldHandoff: false,
+              fallbackReason: 'knowledge_unavailable'
+            };
+        const automated = await messagingRepository.createAutomatedInboundResponse({
+          tenantId: parsed.data.tenantId,
+          conversationId: result.conversationId,
+          triggerMessageId: result.messageId,
+          content: grounded.answer,
+          shouldHandoff: grounded.shouldHandoff,
+          reasonCode: grounded.fallbackReason ?? 'ai_requested_handoff',
+          traceId: grounded.id,
+          now: new Date(parsed.data.occurredAt)
+        });
+        if (automated) {
+          aiAutomation = { traceId: grounded.id, ...automated };
+          await options.outboxEnqueuer
+            ?.enqueue(parsed.data.tenantId, automated.outboxMessageId)
+            .catch(() => undefined);
+        }
+      } finally {
+        await options.whatsappSessionController
+          ?.presence?.(parsed.data.tenantId, parsed.data.senderJid, 'paused')
           .catch(() => undefined);
       }
     }
@@ -2546,7 +2566,8 @@ export const createApp = (options: AppOptions = {}): Express => {
       return result.status === 'ok'
         ? success(request, response, {
             results: result.value,
-            indexVersionId: result.indexVersionId
+            indexVersionId: result.indexVersionId,
+            retrievalMode: result.retrievalMode
           })
         : knowledgeMutationFailure(request, response, result.status);
     }

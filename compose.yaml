@@ -21,7 +21,6 @@ services:
   web:
     <<: *app-service
     command:
-      - node
       - apps/web/node_modules/next/dist/bin/next
       - start
       - apps/web
@@ -44,7 +43,7 @@ services:
     healthcheck:
       test:
         - CMD
-        - node
+        - /nodejs/bin/node
         - -e
         - fetch('http://127.0.0.1:3000').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
       interval: 10s
@@ -61,7 +60,6 @@ services:
       dockerfile: infra/Dockerfile.app
     pull_policy: never
     command:
-      - node
       - apps/api/dist/server.js
     environment:
       AI_MASTER_KEY_FILE: /run/secrets/ai_master_key
@@ -113,7 +111,7 @@ services:
     healthcheck:
       test:
         - CMD
-        - node
+        - /nodejs/bin/node
         - -e
         - fetch('http://127.0.0.1:4000/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
       interval: 10s
@@ -124,7 +122,6 @@ services:
   worker:
     <<: *app-service
     command:
-      - node
       - apps/worker/dist/index.js
     environment:
       AI_MASTER_KEY_FILE: /run/secrets/ai_master_key
@@ -168,7 +165,7 @@ services:
     healthcheck:
       test:
         - CMD
-        - node
+        - /nodejs/bin/node
         - -e
         - fetch('http://127.0.0.1:4010/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
       interval: 10s
@@ -179,7 +176,6 @@ services:
   whatsapp:
     <<: *app-service
     command:
-      - node
       - apps/whatsapp/dist/index.js
     environment:
       NODE_ENV: production
@@ -210,7 +206,7 @@ services:
     healthcheck:
       test:
         - CMD
-        - node
+        - /nodejs/bin/node
         - -e
         - fetch('http://127.0.0.1:4020/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
       interval: 10s
@@ -219,7 +215,11 @@ services:
       start_period: 15s
 
   postgres:
-    image: pgvector/pgvector:0.8.6-pg18-bookworm@sha256:691673308c99d2161ba298736f3147f1f22d79de2fb7ec93ae9b4afcab870b62
+    image: raho/postgres-pgvector:18.4-0.8.6-r1
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.postgres
+    pull_policy: never
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-raho_chatbot}
@@ -241,7 +241,7 @@ services:
       - data
 
   redis:
-    image: redis:8.8.0@sha256:234c902a2db49461a129e2d4aeff85b28cf20187ed274a67f6e50995fa713c7b
+    image: redis:8.8.0-alpine3.23@sha256:9d317178eceac8454a2284a9e6df2466b93c745529947f0cd42a0fa9609d7005
     restart: unless-stopped
     entrypoint:
       - /bin/sh
@@ -315,7 +315,8 @@ services:
       - data
 
   minio-init:
-    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+    image: raho/minio-full:2025-04-22-r1
+    pull_policy: never
     entrypoint:
       - /bootstrap/bootstrap.sh
     restart: 'no'

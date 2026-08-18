@@ -1,6 +1,6 @@
 'use client';
 
-import { type FormEvent, useCallback, useEffect, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 
 import { Shell } from '../../components/shell';
 import { api, ApiError } from '../../lib/api';
@@ -13,7 +13,11 @@ export default function InboxPage() {
   const [search, setSearch] = useState('');
   const [reply, setReply] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const followLatestRef = useRef(true);
+  const selectedId = selected?.id;
 
   const loadConversations = useCallback(async () => {
     const query = search ? `?search=${encodeURIComponent(search)}` : '';
@@ -22,6 +26,7 @@ export default function InboxPage() {
     setSelected((current) =>
       current ? (data.find(({ id }) => id === current.id) ?? data[0] ?? null) : (data[0] ?? null)
     );
+    return data;
   }, [search]);
 
   const loadMessages = useCallback(async (conversationId: string) => {
@@ -37,9 +42,20 @@ export default function InboxPage() {
   }, [loadConversations]);
 
   useEffect(() => {
-    if (selected)
-      void loadMessages(selected.id).catch(() => setError('Timeline tidak dapat dimuat.'));
-  }, [loadMessages, selected]);
+    followLatestRef.current = true;
+    if (selectedId) {
+      void loadMessages(selectedId).catch(() => setError('Timeline tidak dapat dimuat.'));
+    }
+  }, [loadMessages, selectedId]);
+
+  useEffect(() => {
+    const timeline = timelineRef.current;
+    if (!timeline || !followLatestRef.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      timeline.scrollTop = timeline.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [messages]);
 
   useEffect(() => {
     const refresh = () => {
@@ -61,6 +77,7 @@ export default function InboxPage() {
     if (!selected || !reply.trim()) return;
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
       await api('/messages', {
         method: 'POST',
@@ -76,22 +93,44 @@ export default function InboxPage() {
     }
   };
 
-  const createHandoff = async () => {
+  const toggleAutomation = async () => {
     if (!selected) return;
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
-      await api('/handoffs', {
-        method: 'POST',
-        body: JSON.stringify({
-          conversationId: selected.id,
-          reasonCode: 'manual_review',
-          priority: 'normal'
-        })
-      });
-      await loadConversations();
+      if (selected.handlingMode === 'bot') {
+        await api('/handoffs', {
+          method: 'POST',
+          body: JSON.stringify({
+            conversationId: selected.id,
+            reasonCode: 'manual_review',
+            priority: 'normal'
+          })
+        });
+        await loadConversations();
+        setNotice('AI dinonaktifkan. Percakapan sekarang ditangani admin.');
+      } else {
+        let current = selected;
+        let resolvedCount = 0;
+        while (current.handlingMode === 'human' && current.activeHandoff && resolvedCount < 10) {
+          await api(`/handoffs/${current.activeHandoff.id}/resolve`, {
+            method: 'POST',
+            body: JSON.stringify({
+              resolutionNote: 'AI diaktifkan kembali melalui kontrol Inbox'
+            })
+          });
+          resolvedCount += 1;
+          const refreshed = await loadConversations();
+          current = refreshed.find(({ id }) => id === selected.id) ?? current;
+        }
+        if (current.handlingMode !== 'bot') {
+          throw new Error('AI belum dapat diaktifkan karena status handoff tidak konsisten.');
+        }
+        setNotice('AI diaktifkan kembali untuk percakapan ini.');
+      }
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'Handoff gagal dibuat.');
+      setError(caught instanceof Error ? caught.message : 'Mode penanganan gagal diubah.');
     } finally {
       setBusy(false);
     }
@@ -100,7 +139,11 @@ export default function InboxPage() {
   return (
     <Shell eyebrow="Pesan" title="Inbox">
       <section className="inbox-layout">
-        <aside className="section-card conversation-list" aria-label="Daftar percakapan">
+        <aside
+          aria-label="Daftar percakapan"
+          className="section-card conversation-list"
+          tabIndex={0}
+        >
           <div className="section-heading compact">
             <div>
               <p className="eyebrow">WhatsApp</p>
@@ -133,6 +176,11 @@ export default function InboxPage() {
                   </strong>
                   <small>{conversation.lastMessage?.content ?? 'Belum ada pesan'}</small>
                 </span>
+                <span
+                  className={`conversation-mode-badge ${conversation.handlingMode === 'bot' ? 'is-bot' : 'is-human'}`}
+                >
+                  {conversation.handlingMode === 'bot' ? 'AI' : 'ADMIN'}
+                </span>
                 {conversation.unreadCount > 0 && (
                   <span className="count-badge">{conversation.unreadCount}</span>
                 )}
@@ -150,15 +198,54 @@ export default function InboxPage() {
                   <p className="eyebrow">{selected.contact.maskedPhone}</p>
                   <h2>{selected.contact.displayName ?? 'Kontak WhatsApp'}</h2>
                 </div>
-                <button
-                  className="secondary-button"
-                  disabled={busy}
-                  onClick={() => void createHandoff()}
+                <div
+                  className={`automation-control ${selected.handlingMode === 'bot' ? 'is-bot' : 'is-human'}`}
                 >
-                  Buat handoff
-                </button>
+                  <span className="automation-copy">
+                    <strong>{selected.handlingMode === 'bot' ? 'AI Aktif' : 'Admin Aktif'}</strong>
+                    <small>
+                      {selected.handlingMode === 'bot'
+                        ? 'Bot membalas otomatis'
+                        : 'AI tidak membalas pesan'}
+                    </small>
+                  </span>
+                  <button
+                    aria-label={
+                      selected.handlingMode === 'bot'
+                        ? 'Nonaktifkan AI dan alihkan ke admin'
+                        : 'Aktifkan AI untuk percakapan ini'
+                    }
+                    aria-pressed={selected.handlingMode === 'bot'}
+                    className="automation-toggle"
+                    disabled={busy}
+                    onClick={() => void toggleAutomation()}
+                    type="button"
+                  >
+                    <span aria-hidden="true" className="automation-toggle-knob" />
+                  </button>
+                </div>
               </div>
-              <div className="timeline" aria-label="Timeline pesan">
+              {notice && (
+                <p className="notice success-notice automation-notice" role="status">
+                  {notice}
+                </p>
+              )}
+              {error && (
+                <p className="error-summary automation-notice" role="alert">
+                  {error}
+                </p>
+              )}
+              <div
+                aria-label="Timeline pesan"
+                className="timeline"
+                onScroll={(event) => {
+                  const timeline = event.currentTarget;
+                  followLatestRef.current =
+                    timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight < 80;
+                }}
+                ref={timelineRef}
+                tabIndex={0}
+              >
                 {messages.map((message) => (
                   <article
                     className={`message-bubble ${message.direction === 'outgoing' ? 'outgoing' : 'incoming'}`}
@@ -184,7 +271,6 @@ export default function InboxPage() {
                     placeholder="Tulis pesan untuk kontak ini…"
                   />
                 </label>
-                {error && <p className="error-summary">{error}</p>}
                 <button className="primary-button" disabled={busy} type="submit">
                   {busy ? 'Memproses…' : 'Kirim lewat outbox'}
                 </button>

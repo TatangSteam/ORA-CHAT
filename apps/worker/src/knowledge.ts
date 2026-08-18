@@ -202,6 +202,16 @@ export class KnowledgeWorker {
           }
         });
       }
+      await this.prisma.knowledgeLexicalChunk.createMany({
+        data: chunkDocumentText(text).map((chunk) => ({
+          id: generateUuidV7(),
+          tenantId,
+          documentId,
+          itemVersionId: null,
+          ...chunk
+        })),
+        skipDuplicates: true
+      });
       await this.prisma.knowledgeDocument.update({
         where: { id: documentId },
         data: { state: 'ready', readyAt: new Date(), revision: { increment: 1 } }

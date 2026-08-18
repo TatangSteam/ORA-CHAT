@@ -327,7 +327,17 @@ export class PrismaAiOperationsRepository {
 
   public async analytics(tenantId: string, days: number) {
     const since = new Date(this.now().getTime() - days * 86_400_000);
-    const [traces, handoffs, unanswered, queue, usage, feedback] = await Promise.all([
+    const [
+      traces,
+      handoffs,
+      unanswered,
+      queue,
+      usage,
+      feedback,
+      tokenTotals,
+      providerRequests,
+      meteredRequests
+    ] = await Promise.all([
       this.prisma.aiMessageTrace.findMany({
         where: { tenantId, createdAt: { gte: since } },
         select: {
@@ -362,6 +372,21 @@ export class PrismaAiOperationsRepository {
         by: ['category'],
         where: { tenantId, updatedAt: { gte: since } },
         _count: true
+      }),
+      this.prisma.aiMessageTrace.aggregate({
+        where: { tenantId, createdAt: { gte: since }, provider: { not: null } },
+        _sum: { inputTokens: true, outputTokens: true, cachedTokens: true }
+      }),
+      this.prisma.aiMessageTrace.count({
+        where: { tenantId, createdAt: { gte: since }, provider: { not: null } }
+      }),
+      this.prisma.aiMessageTrace.count({
+        where: {
+          tenantId,
+          createdAt: { gte: since },
+          provider: { not: null },
+          OR: [{ inputTokens: { not: null } }, { outputTokens: { not: null } }]
+        }
       })
     ]);
     const total = traces.length;
@@ -386,6 +411,9 @@ export class PrismaAiOperationsRepository {
       errors: value.failures,
       averageLatencyMs: Math.round(value.latencyMs / value.requests)
     }));
+    const inputTokens = tokenTotals._sum.inputTokens ?? 0;
+    const outputTokens = tokenTotals._sum.outputTokens ?? 0;
+    const totalTokens = inputTokens + outputTokens;
     return {
       windowDays: days,
       total,
@@ -397,9 +425,14 @@ export class PrismaAiOperationsRepository {
       unanswered,
       latencyP50Ms: latency[Math.floor(latency.length * 0.5)] ?? 0,
       latencyP95Ms: latency[Math.min(latency.length - 1, Math.floor(latency.length * 0.95))] ?? 0,
-      inputTokens: traces.reduce((sum, row) => sum + (row.inputTokens ?? 0), 0),
-      outputTokens: traces.reduce((sum, row) => sum + (row.outputTokens ?? 0), 0),
-      cachedTokens: traces.reduce((sum, row) => sum + (row.cachedTokens ?? 0), 0),
+      inputTokens,
+      outputTokens,
+      totalTokens,
+      cachedTokens: tokenTotals._sum.cachedTokens ?? 0,
+      providerRequests,
+      meteredRequests,
+      usageCoverageRate: providerRequests ? meteredRequests / providerRequests : 1,
+      averageTokensPerRequest: meteredRequests ? Math.round(totalTokens / meteredRequests) : 0,
       cacheHits: traces.filter(({ cacheHit }) => cacheHit).length,
       estimatedCost: traces.reduce((sum, row) => sum + (row.costMinor ?? 0), 0),
       costCurrency: traces.find(({ costCurrency }) => costCurrency)?.costCurrency ?? 'USD',
@@ -422,9 +455,31 @@ export class PrismaAiOperationsRepository {
     });
   }
 
+  private async hasLexicalSources(tenantId: string): Promise<boolean> {
+    const rows = await this.prisma.$queryRaw<Array<{ available: boolean }>>(Prisma.sql`
+      SELECT EXISTS (
+        SELECT 1
+        FROM knowledge_lexical_chunks c
+        LEFT JOIN knowledge_documents d
+          ON d.id = c.document_id AND d.tenant_id = c.tenant_id
+        LEFT JOIN knowledge_item_versions v
+          ON v.id = c.item_version_id AND v.tenant_id = c.tenant_id
+        LEFT JOIN knowledge_items i
+          ON i.id = v.item_id AND i.tenant_id = c.tenant_id
+        WHERE c.tenant_id = ${tenantId}::uuid
+          AND (
+            (c.document_id IS NOT NULL AND d.state = 'ready') OR
+            (c.item_version_id IS NOT NULL AND i.status = 'published'
+             AND i.published_version_id = v.id AND v.status = 'published')
+          )
+      ) AS available
+    `);
+    return rows[0]?.available ?? false;
+  }
+
   private async refreshAlerts(tenantId: string) {
     const since = new Date(this.now().getTime() - 3_600_000);
-    const [oldestQueue, traces, integration] = await Promise.all([
+    const [oldestQueue, traces, integration, lexicalSourcesAvailable] = await Promise.all([
       this.prisma.outboxMessage.findFirst({
         where: { tenantId, status: { in: ['queued', 'retryable', 'leased'] } },
         orderBy: { createdAt: 'asc' },
@@ -437,7 +492,8 @@ export class PrismaAiOperationsRepository {
       this.prisma.aiIntegration.findFirst({
         where: { tenantId, name: 'default' },
         include: { activeChatConnection: true, activeEmbeddingConnection: true }
-      })
+      }),
+      this.hasLexicalSources(tenantId)
     ]);
     const alerts: Array<{
       code: string;
@@ -466,7 +522,8 @@ export class PrismaAiOperationsRepository {
     if (
       integration?.status === 'active' &&
       (integration.activeChatConnection?.healthState !== 'ready' ||
-        integration.activeEmbeddingConnection?.healthState !== 'ready')
+        (!lexicalSourcesAvailable &&
+          integration.activeEmbeddingConnection?.healthState !== 'ready'))
     ) {
       alerts.push({
         code: 'AI_PROVIDER_NOT_READY',
@@ -510,22 +567,24 @@ export class PrismaAiOperationsRepository {
     requestId: string
   ): Promise<OperationsResult<unknown>> {
     await this.refreshAlerts(tenantId);
-    const [integration, cases, runs, criticalAlerts, safety] = await Promise.all([
-      this.prisma.aiIntegration.findFirst({ where: { tenantId, name: 'default' } }),
-      this.prisma.aiTestCase.findMany({
-        where: { tenantId, status: 'active' },
-        select: { id: true }
-      }),
-      this.prisma.aiTestRun.findMany({
-        where: { tenantId },
-        distinct: ['testCaseId'],
-        orderBy: [{ testCaseId: 'asc' }, { startedAt: 'desc' }]
-      }),
-      this.prisma.aiOperationalAlert.count({
-        where: { tenantId, status: 'open', severity: 'critical' }
-      }),
-      this.prisma.safetyControlState.findUnique({ where: { tenantId } })
-    ]);
+    const [integration, cases, runs, criticalAlerts, safety, lexicalSourcesAvailable] =
+      await Promise.all([
+        this.prisma.aiIntegration.findFirst({ where: { tenantId, name: 'default' } }),
+        this.prisma.aiTestCase.findMany({
+          where: { tenantId, status: 'active' },
+          select: { id: true }
+        }),
+        this.prisma.aiTestRun.findMany({
+          where: { tenantId },
+          distinct: ['testCaseId'],
+          orderBy: [{ testCaseId: 'asc' }, { startedAt: 'desc' }]
+        }),
+        this.prisma.aiOperationalAlert.count({
+          where: { tenantId, status: 'open', severity: 'critical' }
+        }),
+        this.prisma.safetyControlState.findUnique({ where: { tenantId } }),
+        this.hasLexicalSources(tenantId)
+      ]);
     if (!integration) return { status: 'not_found' };
     const latest = new Map(runs.map((run) => [run.testCaseId, run]));
     const passedCases = cases.filter(({ id }) => latest.get(id)?.status === 'passed').length;
@@ -534,7 +593,7 @@ export class PrismaAiOperationsRepository {
       activeIntegration:
         integration.status === 'active' &&
         integration.generationEnabled &&
-        integration.retrievalEnabled &&
+        (integration.retrievalEnabled || lexicalSourcesAvailable) &&
         integration.strictGrounding,
       evaluation: cases.length > 0 && score >= input.minimumScore,
       criticalAlerts: criticalAlerts === 0,

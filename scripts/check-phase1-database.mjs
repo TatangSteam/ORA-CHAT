@@ -43,7 +43,10 @@ const checks = {
     "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('ai_integrations','ai_provider_credentials','ai_provider_connections','ai_model_capability_cache','embedding_index_versions')"
   ),
   phase4Tables: psql(
-    "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('knowledge_categories','knowledge_items','knowledge_item_versions','knowledge_question_variants','knowledge_documents','knowledge_storage_objects','knowledge_chunks','ai_prompt_versions','ai_message_traces','ai_message_sources','ai_embedding_usage_logs','ai_response_cache')"
+    "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('knowledge_categories','knowledge_items','knowledge_item_versions','knowledge_question_variants','knowledge_documents','knowledge_storage_objects','knowledge_chunks','knowledge_lexical_chunks','ai_prompt_versions','ai_message_traces','ai_message_sources','ai_embedding_usage_logs','ai_response_cache')"
+  ),
+  lexicalSourceConstraint: psql(
+    "SELECT count(*) FROM pg_constraint WHERE conname IN ('knowledge_lexical_chunks_one_source_check','ai_message_sources_one_source_check')"
   ),
   phase5Tables: psql(
     "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('ai_admin_feedback','unanswered_questions','unanswered_question_occurrences','ai_test_cases','ai_test_runs','ai_release_readiness','ai_evaluation_reports','ai_operational_alerts')"
@@ -73,12 +76,13 @@ const checks = {
 };
 
 const expected = {
-  migrations: '8',
+  migrations: '9',
   pgvector: '0.8.6',
   phase1Tables: '7',
   phase2Tables: '9',
   phase3Tables: '5',
-  phase4Tables: '12',
+  phase4Tables: '13',
+  lexicalSourceConstraint: '2',
   phase5Tables: '8',
   phase6Tables: '5',
   auditTrigger: '1',

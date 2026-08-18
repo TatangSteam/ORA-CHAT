@@ -163,7 +163,11 @@ export class PinnedSafeHttpTransport implements ProviderHttpTransport {
   public async request(input: SafeHttpRequest): Promise<SafeHttpResponse> {
     const { url, address, family } = await validateProviderUrl(input.url, this.options);
     const body = input.body === undefined ? undefined : Buffer.from(JSON.stringify(input.body));
-    const lookup: LookupFunction = (_hostname, _options, callback) => {
+    const lookup: LookupFunction = (_hostname, lookupOptions, callback) => {
+      if (lookupOptions.all) {
+        callback(null, [{ address, family }]);
+        return;
+      }
       callback(null, address, family);
     };
     return new Promise((resolve, reject) => {
@@ -302,8 +306,15 @@ const numberOrNull = (value: unknown): number | null =>
 
 const parseJsonText = (value: unknown): AiStructuredAnswer => {
   if (typeof value !== 'string') throw new ProviderFailure('incompatible');
+  const trimmed = value.trim();
+  const normalized = trimmed.startsWith('```')
+    ? trimmed
+        .replace(/^```(?:json)?\s*/iu, '')
+        .replace(/\s*```$/u, '')
+        .trim()
+    : trimmed;
   try {
-    return aiStructuredAnswerSchema.parse(JSON.parse(value));
+    return aiStructuredAnswerSchema.parse(JSON.parse(normalized));
   } catch {
     throw new ProviderFailure('incompatible');
   }
@@ -328,6 +339,9 @@ const emptyUsage = (): AiUsage =>
     totalTokens: null,
     cachedTokens: null
   });
+
+const STRUCTURED_ANSWER_INSTRUCTION =
+  'Return only one JSON object with exactly these fields: "answer" (string), "status" (one of "answered", "fallback", or "handoff"), "shouldHandoff" (boolean), and "citations" (array of strings). Do not use Markdown or add other fields.';
 
 export class AiProviderAdapter {
   public constructor(
@@ -470,7 +484,13 @@ export class AiProviderAdapter {
       url = `${base}/chat/completions`;
       body = {
         model: this.connection.modelId,
-        messages: [{ role: 'user', content: prompt }],
+        messages: [
+          { role: 'system', content: STRUCTURED_ANSWER_INSTRUCTION },
+          {
+            role: 'user',
+            content: `${prompt}\n\nOUTPUT FORMAT (required): ${STRUCTURED_ANSWER_INSTRUCTION}`
+          }
+        ],
         ...(maxOutputTokens !== undefined ? { max_tokens: maxOutputTokens } : {}),
         response_format: { type: 'json_object' },
         ...(temperature !== undefined ? { temperature } : {}),

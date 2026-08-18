@@ -124,6 +124,14 @@ export const internalOutboundSendRequestSchema = z
   })
   .strict();
 
+export const internalWhatsAppPresenceRequestSchema = z
+  .object({
+    tenantId: z.uuid(),
+    recipientJid: providerJidSchema,
+    state: z.enum(['composing', 'paused'])
+  })
+  .strict();
+
 export const internalOutboundSendResponseSchema = z
   .object({ providerMessageId: z.string().min(1).max(191) })
   .strict();

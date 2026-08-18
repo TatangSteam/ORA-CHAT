@@ -6,6 +6,7 @@ const composePath = 'compose.yaml';
 const composeSource = readFileSync(composePath, 'utf8');
 const dockerfileSource = readFileSync('infra/Dockerfile.app', 'utf8');
 const minioDockerfileSource = readFileSync('infra/Dockerfile.minio', 'utf8');
+const postgresDockerfileSource = readFileSync('infra/Dockerfile.postgres', 'utf8');
 const redisConfigSource = readFileSync('infra/redis/redis.conf', 'utf8');
 const composeResult = spawnSync(
   'docker',
@@ -40,11 +41,10 @@ const requiredServices = [
 const longRunningServices = requiredServices.filter((name) => name !== 'minio-init');
 const expectedImages = {
   minio: 'raho/minio-full:2025-04-22-r1',
-  'minio-init':
-    'quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727',
-  postgres:
-    'pgvector/pgvector:0.8.6-pg18-bookworm@sha256:691673308c99d2161ba298736f3147f1f22d79de2fb7ec93ae9b4afcab870b62',
-  redis: 'redis:8.8.0@sha256:234c902a2db49461a129e2d4aeff85b28cf20187ed274a67f6e50995fa713c7b'
+  'minio-init': 'raho/minio-full:2025-04-22-r1',
+  postgres: 'raho/postgres-pgvector:18.4-0.8.6-r1',
+  redis:
+    'redis:8.8.0-alpine3.23@sha256:9d317178eceac8454a2284a9e6df2466b93c745529947f0cd42a0fa9609d7005'
 };
 
 const serviceNames = Object.keys(config.services ?? {}).sort();
@@ -76,6 +76,17 @@ if (!config.services?.api?.build || config.services.api.pull_policy !== 'never')
 
 if (!config.services?.minio?.build || config.services.minio.pull_policy !== 'never') {
   violations.push('minio must build the exact internal full-console image locally');
+}
+
+if (!config.services?.postgres?.build || config.services.postgres.pull_policy !== 'never') {
+  violations.push('postgres must build the hardened pgvector image locally');
+}
+
+if (
+  config.services?.['minio-init']?.build ||
+  config.services?.['minio-init']?.pull_policy !== 'never'
+) {
+  violations.push('minio-init must reuse the locally built MinIO image');
 }
 
 for (const name of ['web', 'whatsapp', 'worker']) {
@@ -201,16 +212,36 @@ if (!/^USER 1000:1000$/mu.test(minioDockerfileSource)) {
   violations.push('internal MinIO image must run as UID/GID 1000');
 }
 
-const expectedNodeImage =
+const expectedGoBuildImage =
+  'golang:1.25.11-trixie@sha256:56a4d6ead4365cd569ca388003bdce672e7ca7286513f96b44b03d3b5e79d26f';
+const expectedNodeBuildImage =
+  'node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d';
+const expectedNodeRuntimeImage =
   'node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d';
 const nodeFromStatements = [...dockerfileSource.matchAll(/^FROM\s+(\S+)/gimu)].map(
   (match) => match[1]
 );
 if (
-  nodeFromStatements.length !== 2 ||
-  nodeFromStatements.some((image) => image !== expectedNodeImage)
+  nodeFromStatements.length !== 3 ||
+  nodeFromStatements[0] !== expectedGoBuildImage ||
+  nodeFromStatements[1] !== expectedNodeBuildImage ||
+  nodeFromStatements[2] !== expectedNodeRuntimeImage
 ) {
-  violations.push(`every application stage must use ${expectedNodeImage}`);
+  violations.push(
+    `application stages must use ${expectedGoBuildImage}, ${expectedNodeBuildImage}, then ${expectedNodeRuntimeImage}`
+  );
+}
+if (/esbuild\+linux-(?:arm64|x64)/u.test(dockerfileSource)) {
+  violations.push('application image hardening must not pin esbuild to one CPU architecture');
+}
+
+const expectedPostgresBase =
+  'pgvector/pgvector:0.8.6-pg18-bookworm@sha256:691673308c99d2161ba298736f3147f1f22d79de2fb7ec93ae9b4afcab870b62';
+if (!postgresDockerfileSource.includes(`FROM ${expectedPostgresBase} AS patched`)) {
+  violations.push(`hardened PostgreSQL image must derive from ${expectedPostgresBase}`);
+}
+if (!/^FROM scratch$/mu.test(postgresDockerfileSource)) {
+  violations.push('hardened PostgreSQL image must flatten the patched runtime filesystem');
 }
 
 for (const directive of ['appendonly yes', 'appendfsync everysec', 'maxmemory-policy noeviction']) {

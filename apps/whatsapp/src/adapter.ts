@@ -203,6 +203,17 @@ export class BaileysAdapter {
     return { providerMessageId };
   }
 
+  public async presence(
+    tenantId: string,
+    recipientJid: string,
+    state: 'composing' | 'paused'
+  ): Promise<void> {
+    if (tenantId !== this.tenantId || !this.connected || !this.socket) {
+      throw new Error('whatsapp_not_connected');
+    }
+    await this.socket.sendPresenceUpdate(state, recipientJid);
+  }
+
   public async reconnect(tenantId: string): Promise<void> {
     this.assertTenant(tenantId);
     this.connectionEnabled = true;

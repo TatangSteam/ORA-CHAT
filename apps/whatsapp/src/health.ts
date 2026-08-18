@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type Server } from 'node:http';
 import {
   healthResponseSchema,
   internalOutboundSendRequestSchema,
+  internalWhatsAppPresenceRequestSchema,
   readinessResponseSchema
 } from '@raho/contracts';
 
@@ -17,6 +18,11 @@ interface InternalServiceOptions {
     recipientJid: string,
     content: string
   ) => Promise<{ providerMessageId: string }>;
+  presence?: (
+    tenantId: string,
+    recipientJid: string,
+    state: 'composing' | 'paused'
+  ) => Promise<void>;
   reconnect?: (tenantId: string) => Promise<void>;
   disconnect?: (tenantId: string) => Promise<void>;
 }
@@ -127,6 +133,34 @@ export const createWhatsAppHealthServer = (
             'x-content-type-options': 'nosniff'
           });
           response.end('{"error":"send_rejected"}');
+        });
+      return;
+    }
+    if (
+      request.method === 'POST' &&
+      request.url === '/internal/v1/presence' &&
+      internalQr?.presence
+    ) {
+      if (!verifyInternalToken(internalQr.token, request.headers.authorization)) {
+        response.writeHead(401, {
+          'cache-control': 'no-store',
+          'content-type': 'application/json; charset=utf-8',
+          'x-content-type-options': 'nosniff'
+        });
+        response.end('{"error":"unauthorized"}');
+        return;
+      }
+      void readJson(request)
+        .then((body) => internalWhatsAppPresenceRequestSchema.parseAsync(body))
+        .then((input) => internalQr.presence!(input.tenantId, input.recipientJid, input.state))
+        .then(() => response.writeHead(204, { 'cache-control': 'no-store' }).end())
+        .catch((error: unknown) => {
+          const code = error instanceof Error ? error.message : '';
+          response.writeHead(code === 'whatsapp_not_connected' ? 409 : 400, {
+            'cache-control': 'no-store',
+            'content-type': 'application/json; charset=utf-8'
+          });
+          response.end('{"error":"presence_rejected"}');
         });
       return;
     }

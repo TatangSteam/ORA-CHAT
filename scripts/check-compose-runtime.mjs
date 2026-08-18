@@ -52,7 +52,7 @@ const ephemeralQr = compose([
   'exec',
   '-T',
   'api',
-  'node',
+  '/nodejs/bin/node',
   '-e',
   "const fs=require('node:fs');const token=fs.readFileSync(process.env.WHATSAPP_INTERNAL_TOKEN_FILE,'utf8').trim();fetch(process.env.WHATSAPP_INTERNAL_URL,{headers:{authorization:'Bearer '+token,'x-tenant-id':process.argv.at(-1)}}).then(async r=>{if(r.status===404)return;if(!r.ok)process.exit(2);const value=await r.json();process.stdout.write(value.qr)}).catch(()=>process.exit(3))",
   tenantId
@@ -98,7 +98,7 @@ const postgresVersions = compose([
 ]).split('\n');
 const redisVersion = compose(['exec', '-T', 'redis', 'redis-server', '--version']);
 const minioVersion = compose(['exec', '-T', 'minio', 'minio', '--version']);
-const nodeVersion = compose(['exec', '-T', 'api', 'node', '--version']);
+const nodeVersion = compose(['exec', '-T', 'api', '/nodejs/bin/node', '--version']);
 
 if (postgresVersions[0] !== '18.4 (Debian 18.4-1.pgdg12+1)') {
   violations.push(`unexpected PostgreSQL version: ${postgresVersions[0]}`);

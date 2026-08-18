@@ -10,12 +10,14 @@ const compose = (args) => {
   return result.stdout.trim();
 };
 
-const first = JSON.parse(compose(['exec', '-T', 'worker', 'node', 'packages/queue/dist/smoke.js']));
+const first = JSON.parse(
+  compose(['exec', '-T', 'worker', '/nodejs/bin/node', 'packages/queue/dist/smoke.js'])
+);
 if (!first.deterministicId || first.status !== 'passed') throw new Error('Queue smoke was invalid');
 
 compose(['restart', 'redis', 'worker']);
 const recovered = JSON.parse(
-  compose(['exec', '-T', 'worker', 'node', 'packages/queue/dist/smoke.js'])
+  compose(['exec', '-T', 'worker', '/nodejs/bin/node', 'packages/queue/dist/smoke.js'])
 );
 if (!recovered.deterministicId || recovered.status !== 'passed') {
   throw new Error('Queue restart recovery failed');
