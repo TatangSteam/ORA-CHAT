@@ -140,7 +140,7 @@ export class KnowledgeWorker {
         object.versionId
       );
       const mime = assertSafeDocument(content, document.declaredMime, document.sha256);
-      const text = extractDocumentText(content, mime);
+      const text = await extractDocumentText(content, mime);
       await this.prisma.knowledgeDocument.update({
         where: { id: documentId },
         data: { state: 'cleaning', detectedMime: mime }

@@ -1,8 +1,11 @@
 import { createHash } from 'node:crypto';
-import { inflateRawSync, inflateSync } from 'node:zlib';
+import { inflateRawSync } from 'node:zlib';
+
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 export const MAX_DOCUMENT_BYTES = 10_485_760;
 export const MAX_EXTRACTED_CHARACTERS = 2_000_000;
+const MAX_PDF_PAGES = 2_000;
 
 export type SupportedMime =
   | 'application/pdf'
@@ -93,36 +96,65 @@ const extractDocxXml = (content: Buffer): string => {
   throw new Error('DOCX_DOCUMENT_XML_MISSING');
 };
 
-const extractPdfText = (content: Buffer): string => {
+const extractPdfText = async (content: Buffer): Promise<string> => {
   const raw = content.toString('latin1');
   if (/\/JavaScript|\/JS|\/Launch|\/EmbeddedFile/iu.test(raw)) {
     throw new Error('PDF_ACTIVE_CONTENT');
   }
-  const candidates = [raw];
-  for (const match of raw.matchAll(/<<(.*?)>>\s*stream\r?\n([\s\S]*?)\r?\nendstream/gu)) {
-    if (!/\/FlateDecode/u.test(match[1]!)) continue;
-    try {
-      candidates.push(
-        inflateSync(Buffer.from(match[2]!, 'latin1'), {
-          maxOutputLength: MAX_EXTRACTED_CHARACTERS * 2
-        }).toString('latin1')
-      );
-    } catch {
-      throw new Error('PDF_STREAM_INVALID');
+  const loadingTask = getDocument({
+    data: new Uint8Array(content),
+    disableFontFace: true,
+    enableXfa: false,
+    isImageDecoderSupported: false,
+    isOffscreenCanvasSupported: false,
+    maxImageSize: 0,
+    stopAtErrors: true,
+    useSystemFonts: false,
+    useWasm: false,
+    useWorkerFetch: false,
+    verbosity: 0
+  });
+  try {
+    const document = await loadingTask.promise;
+    const [attachments, javaScript] = await Promise.all([
+      document.getAttachments(),
+      document.getJSActions()
+    ]);
+    if (attachments || javaScript) throw new Error('PDF_ACTIVE_CONTENT');
+    if (document.numPages > MAX_PDF_PAGES) throw new Error('PDF_PAGE_LIMIT_EXCEEDED');
+    const pages: string[] = [];
+    let extractedCharacters = 0;
+    for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+      const page = await document.getPage(pageNumber);
+      const textContent = await page.getTextContent({ disableNormalization: false });
+      const pageText = textContent.items
+        .flatMap((item) => ('str' in item && item.str ? [item.str] : []))
+        .join(' ');
+      extractedCharacters += pageText.length;
+      if (extractedCharacters > MAX_EXTRACTED_CHARACTERS) {
+        throw new Error('EXTRACTED_TEXT_TOO_LARGE');
+      }
+      if (pageText) pages.push(pageText);
+      page.cleanup();
     }
+    if (pages.length === 0) throw new Error('PDF_TEXT_UNAVAILABLE');
+    return pages.join('\n');
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      [
+        'EXTRACTED_TEXT_TOO_LARGE',
+        'PDF_ACTIVE_CONTENT',
+        'PDF_PAGE_LIMIT_EXCEEDED',
+        'PDF_TEXT_UNAVAILABLE'
+      ].includes(error.message)
+    ) {
+      throw error;
+    }
+    throw new Error('PDF_STREAM_INVALID', { cause: error });
+  } finally {
+    await loadingTask.destroy();
   }
-  const strings = candidates.flatMap((candidate) =>
-    [...candidate.matchAll(/\(((?:\\.|[^\\)])*)\)\s*Tj/gu)].map((match) =>
-      match[1]!
-        .replace(/\\([()\\])/gu, '$1')
-        .replace(/\\([0-7]{1,3})/gu, (_value, octal: string) =>
-          String.fromCharCode(Number.parseInt(octal, 8))
-        )
-        .replace(/\\n/gu, '\n')
-    )
-  );
-  if (strings.length === 0) throw new Error('PDF_TEXT_UNAVAILABLE');
-  return strings.join('\n');
 };
 
 export const cleanDocumentText = (value: string): string => {
@@ -142,12 +174,15 @@ export const cleanDocumentText = (value: string): string => {
   return cleaned;
 };
 
-export const extractDocumentText = (content: Buffer, mime: SupportedMime): string => {
+export const extractDocumentText = async (
+  content: Buffer,
+  mime: SupportedMime
+): Promise<string> => {
   const raw =
     mime === 'text/plain'
       ? new TextDecoder('utf-8', { fatal: true }).decode(content)
       : mime === 'application/pdf'
-        ? extractPdfText(content)
+        ? await extractPdfText(content)
         : extractDocxXml(content);
   return cleanDocumentText(raw);
 };
@@ -162,7 +197,8 @@ export interface ContentChunk {
 export const chunkDocumentText = (text: string, size = 1_600, overlap = 200): ContentChunk[] => {
   if (overlap < 0 || size <= overlap) throw new Error('INVALID_CHUNK_CONFIGURATION');
   const chunks: ContentChunk[] = [];
-  for (let start = 0; start < text.length; start += size - overlap) {
+  let start = 0;
+  while (start < text.length) {
     let end = Math.min(text.length, start + size);
     if (end < text.length) {
       const boundary = text.lastIndexOf(' ', end);
@@ -178,6 +214,7 @@ export const chunkDocumentText = (text: string, size = 1_600, overlap = 200): Co
       });
     }
     if (end >= text.length) break;
+    start = Math.max(start + 1, end - overlap);
   }
   return chunks;
 };

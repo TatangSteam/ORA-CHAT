@@ -176,6 +176,16 @@ export const protectedRoutePolicies = [
   { method: 'POST', path: '/api/admin/v1/outbox/:id/cancel', permission: 'messages.retry' },
   { method: 'POST', path: '/api/admin/v1/outbox/:id/retry', permission: 'messages.retry' },
   { method: 'POST', path: '/api/admin/v1/outbox/:id/reconcile', permission: 'messages.retry' },
+  {
+    method: 'GET',
+    path: '/api/admin/v1/handoff-notification-settings',
+    permission: 'handoffs.read'
+  },
+  {
+    method: 'POST',
+    path: '/api/admin/v1/handoff-notification-settings',
+    permission: 'handoffs.manage'
+  },
   { method: 'GET', path: '/api/admin/v1/handoffs', permission: 'handoffs.read' },
   { method: 'POST', path: '/api/admin/v1/handoffs', permission: 'handoffs.manage' },
   { method: 'POST', path: '/api/admin/v1/handoffs/:id/assign', permission: 'handoffs.manage' },

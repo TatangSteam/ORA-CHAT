@@ -66,6 +66,7 @@ services:
       AI_PRIVATE_HOST_ALLOWLIST: openclaw
       AI_PRIVATE_PORT_ALLOWLIST: '18789'
       API_PORT: '4000'
+      CS_WHATSAPP_NOTIFICATION_PHONE: ${CS_WHATSAPP_NOTIFICATION_PHONE:-}
       NODE_ENV: production
       POSTGRES_DB: ${POSTGRES_DB:-raho_chatbot}
       POSTGRES_HOST: postgres

@@ -27,6 +27,7 @@ model Tenant {
   outboxMessages            OutboxMessage[]
   idempotencyKeys           IdempotencyKey[]
   handoffTasks              HandoffTask[]
+  handoffNotification       HandoffNotificationSetting?
   ruleVersions              ChatbotRuleVersion[]
   chatbotRules              ChatbotRule[]
   aiIntegrations            AiIntegration[]
@@ -62,28 +63,29 @@ model Tenant {
 }
 
 model AdminUser {
-  id                        String                         @id @db.Uuid
-  username                  String                         @unique @db.VarChar(64)
-  passwordHash              String                         @map("password_hash") @db.VarChar(512)
-  displayName               String                         @map("display_name") @db.VarChar(160)
-  status                    String                         @default("active") @db.VarChar(24)
-  lastLoginAt               DateTime?                      @map("last_login_at") @db.Timestamptz(3)
-  passwordChangedAt         DateTime                       @default(now()) @map("password_changed_at") @db.Timestamptz(3)
-  createdAt                 DateTime                       @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt                 DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(3)
-  memberships               AdminTenantMembership[]
-  auditLogs                 AuditLog[]
-  ownedConversations        Conversation[]                 @relation("ConversationOwner")
-  assignedHandoffs          HandoffTask[]                  @relation("HandoffAssignee")
-  createdRuleVersions       ChatbotRuleVersion[]           @relation("RuleVersionCreator")
-  publishedRuleVersions     ChatbotRuleVersion[]           @relation("RuleVersionPublisher")
-  aiFeedbackReviews         AiAdminFeedback[]
-  createdAiTestCases        AiTestCase[]
-  readinessDecisions        AiReleaseReadiness[]
-  createdMessageTemplates   MessageTemplate[]              @relation("TemplateCreator")
-  createdTemplateVersions   MessageTemplateVersion[]       @relation("TemplateVersionCreator")
-  publishedTemplateVersions MessageTemplateVersion[]       @relation("TemplateVersionPublisher")
-  checkedTemplateItems      MessageChecklistItemSnapshot[] @relation("TemplateChecklistVerifier")
+  id                         String                         @id @db.Uuid
+  username                   String                         @unique @db.VarChar(64)
+  passwordHash               String                         @map("password_hash") @db.VarChar(512)
+  displayName                String                         @map("display_name") @db.VarChar(160)
+  status                     String                         @default("active") @db.VarChar(24)
+  lastLoginAt                DateTime?                      @map("last_login_at") @db.Timestamptz(3)
+  passwordChangedAt          DateTime                       @default(now()) @map("password_changed_at") @db.Timestamptz(3)
+  createdAt                  DateTime                       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                  DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  memberships                AdminTenantMembership[]
+  auditLogs                  AuditLog[]
+  ownedConversations         Conversation[]                 @relation("ConversationOwner")
+  assignedHandoffs           HandoffTask[]                  @relation("HandoffAssignee")
+  updatedHandoffNotification HandoffNotificationSetting[]   @relation("HandoffNotificationUpdater")
+  createdRuleVersions        ChatbotRuleVersion[]           @relation("RuleVersionCreator")
+  publishedRuleVersions      ChatbotRuleVersion[]           @relation("RuleVersionPublisher")
+  aiFeedbackReviews          AiAdminFeedback[]
+  createdAiTestCases         AiTestCase[]
+  readinessDecisions         AiReleaseReadiness[]
+  createdMessageTemplates    MessageTemplate[]              @relation("TemplateCreator")
+  createdTemplateVersions    MessageTemplateVersion[]       @relation("TemplateVersionCreator")
+  publishedTemplateVersions  MessageTemplateVersion[]       @relation("TemplateVersionPublisher")
+  checkedTemplateItems       MessageChecklistItemSnapshot[] @relation("TemplateChecklistVerifier")
 
   @@map("admin_users")
 }
@@ -432,6 +434,20 @@ model HandoffTask {
 
   @@index([tenantId, status, priority, createdAt])
   @@map("handoff_tasks")
+}
+
+model HandoffNotificationSetting {
+  tenantId        String    @id @map("tenant_id") @db.Uuid
+  normalizedPhone String?   @map("normalized_phone") @db.VarChar(20)
+  enabled         Boolean   @default(false)
+  revision        Int       @default(0)
+  updatedByUserId String    @map("updated_by_user_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  updatedByUser   AdminUser @relation("HandoffNotificationUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+
+  @@map("handoff_notification_settings")
 }
 
 model ChatbotRuleVersion {

@@ -1,5 +1,6 @@
 import { createServer } from 'node:http';
 import { apiPort } from '@raho/config';
+import { normalizeIndonesianPhone } from '@raho/contracts';
 import { createDatabaseClient, readAiMasterKey } from '@raho/db';
 import {
   createQueueConnection,
@@ -33,6 +34,10 @@ const transport = new PinnedSafeHttpTransport({
     .filter(Number.isInteger)
 });
 const whatsapp = new InternalWhatsAppQrProvider();
+const configuredCsNotificationPhone = process.env.CS_WHATSAPP_NOTIFICATION_PHONE?.trim();
+const csNotificationPhone = configuredCsNotificationPhone
+  ? normalizeIndonesianPhone(configuredCsNotificationPhone)
+  : undefined;
 const server = createServer(
   createApp({
     repository: new PrismaApiRepository(prisma),
@@ -62,6 +67,7 @@ const server = createServer(
     },
     qrProvider: whatsapp,
     whatsappSessionController: whatsapp,
+    ...(csNotificationPhone ? { csNotificationPhone } : {}),
     storageProbe: () => probeStorageBuckets(storage, storageConfig.buckets)
   })
 );

@@ -5,6 +5,7 @@ import { hashOpaqueValue, newOpaqueToken } from '@raho/db';
 
 export const SESSION_ABSOLUTE_MS = 8 * 60 * 60 * 1000;
 export const SESSION_IDLE_MS = 30 * 60 * 1000;
+export const SESSION_ACTIVITY_WRITE_INTERVAL_MS = 5 * 60 * 1000;
 export const SESSION_COOKIE_PRODUCTION = '__Host-raho_session';
 export const SESSION_COOKIE_DEVELOPMENT = 'raho_session';
 export const LOGIN_CSRF_COOKIE = 'raho_login_csrf';
@@ -19,6 +20,9 @@ export const readApplicationHashKey = (): Buffer => {
 
 export const keyedHash = (key: Buffer, value: string): string =>
   createHmac('sha256', key).update(value, 'utf8').digest('hex');
+
+export const sessionCsrfToken = (key: Buffer, sessionId: string): string =>
+  keyedHash(key, `session-csrf:${sessionId}`);
 
 export const cookieName = (production: boolean): string =>
   production ? SESSION_COOKIE_PRODUCTION : SESSION_COOKIE_DEVELOPMENT;

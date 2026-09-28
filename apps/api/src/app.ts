@@ -31,6 +31,7 @@ import {
   handoffAssignRequestSchema,
   handoffCreateRequestSchema,
   handoffListQuerySchema,
+  handoffNotificationUpdateRequestSchema,
   handoffResolveRequestSchema,
   healthResponseSchema,
   inboundProviderEventSchema,
@@ -104,8 +105,10 @@ import {
   newOpaqueToken,
   parseCookies,
   readApplicationHashKey,
+  sessionCsrfToken,
   serializeCookie,
   SESSION_ABSOLUTE_MS,
+  SESSION_ACTIVITY_WRITE_INTERVAL_MS,
   SESSION_IDLE_MS,
   verifyLoginCsrf
 } from './security.js';
@@ -146,6 +149,7 @@ interface AppOptions {
   storageProbe?: StorageProbe;
   qrProvider?: QrProvider;
   whatsappSessionController?: WhatsAppSessionController;
+  csNotificationPhone?: string;
   eventHub?: TenantEventHub;
 }
 
@@ -271,6 +275,20 @@ export const createApp = (options: AppOptions = {}): Express => {
   ) =>
     response.status(status).json({ error: { code, message }, meta: requestContext(request).meta });
 
+  const refreshSessionActivity = async (session: SessionIdentity, current: Date): Promise<void> => {
+    const idleExpiresAt = new Date(
+      Math.min(session.expiresAt.getTime(), current.getTime() + SESSION_IDLE_MS)
+    );
+    if (
+      idleExpiresAt.getTime() - session.idleExpiresAt.getTime() <
+      SESSION_ACTIVITY_WRITE_INTERVAL_MS
+    ) {
+      return;
+    }
+    await repository.touchSession(session.sessionId, idleExpiresAt, current);
+    session.idleExpiresAt = idleExpiresAt;
+  };
+
   const authenticate = async (request: Request, response: Response, next: NextFunction) => {
     const token = parseCookies(request.header('cookie')).get(sessionCookieName);
     if (!token)
@@ -295,6 +313,9 @@ export const createApp = (options: AppOptions = {}): Express => {
     const context = requestContext(request);
     context.session = session;
     context.permissions = resolvePermissions(session.role, session.permissionOverrides);
+    if (request.header('x-session-activity') === '1') {
+      await refreshSessionActivity(session, current);
+    }
     return next();
   };
 
@@ -495,9 +516,11 @@ export const createApp = (options: AppOptions = {}): Express => {
 
     limiter.success(rateKey);
     const token = newOpaqueToken();
-    const csrfToken = newOpaqueToken();
+    const sessionId = generateUuidV7();
+    const csrfToken = sessionCsrfToken(hashKey, sessionId);
     const current = now();
     await repository.createSession({
+      sessionId,
       identity,
       tokenHash: hashOpaqueValue(token),
       csrfSecretHash: hashOpaqueValue(csrfToken),
@@ -532,14 +555,9 @@ export const createApp = (options: AppOptions = {}): Express => {
 
   app.get('/api/admin/v1/me', authenticate, async (request, response) => {
     const session = requestContext(request).session!;
-    const csrfToken = newOpaqueToken();
+    const csrfToken = sessionCsrfToken(hashKey, session.sessionId);
     const current = now();
-    await repository.rotateCsrf(session.sessionId, hashOpaqueValue(csrfToken));
-    await repository.touchSession(
-      session.sessionId,
-      new Date(Math.min(session.expiresAt.getTime(), current.getTime() + SESSION_IDLE_MS)),
-      current
-    );
+    await refreshSessionActivity(session, current);
     return success(
       request,
       response,
@@ -687,6 +705,7 @@ export const createApp = (options: AppOptions = {}): Express => {
         response.setHeader('Cache-Control', 'no-store, max-age=0');
         response.setHeader('Content-Type', 'image/png');
         response.setHeader('Content-Length', String(png.length));
+        response.setHeader('X-QR-Expires-At', entry.expiresAt.toISOString());
         response.setHeader('Pragma', 'no-cache');
         return response.status(200).end(png);
       } catch {
@@ -1210,6 +1229,7 @@ export const createApp = (options: AppOptions = {}): Express => {
       messageId: string;
       outboxMessageId: string;
       handoffTaskId: string | null;
+      notificationOutboxMessageId: string | null;
     } | null = null;
     if (shouldRunAiAutomation(result)) {
       await options.whatsappSessionController
@@ -1248,13 +1268,22 @@ export const createApp = (options: AppOptions = {}): Express => {
           shouldHandoff: grounded.shouldHandoff,
           reasonCode: grounded.fallbackReason ?? 'ai_requested_handoff',
           traceId: grounded.id,
-          now: new Date(parsed.data.occurredAt)
+          now: new Date(parsed.data.occurredAt),
+          customerQuestion: parsed.data.content,
+          ...(options.csNotificationPhone
+            ? { csNotificationPhone: options.csNotificationPhone }
+            : {})
         });
         if (automated) {
           aiAutomation = { traceId: grounded.id, ...automated };
           await options.outboxEnqueuer
             ?.enqueue(parsed.data.tenantId, automated.outboxMessageId)
             .catch(() => undefined);
+          if (automated.notificationOutboxMessageId) {
+            await options.outboxEnqueuer
+              ?.enqueue(parsed.data.tenantId, automated.notificationOutboxMessageId)
+              .catch(() => undefined);
+          }
         }
       } finally {
         await options.whatsappSessionController
@@ -1891,6 +1920,70 @@ export const createApp = (options: AppOptions = {}): Express => {
           'Hanya state unknown yang dapat direkonsiliasi.'
         );
       return success(request, response, result);
+    }
+  );
+
+  app.get(
+    '/api/admin/v1/handoff-notification-settings',
+    authenticate,
+    requireRoutePermission('GET', '/api/admin/v1/handoff-notification-settings'),
+    async (request, response) => {
+      if (!messagingRepository)
+        return failure(
+          request,
+          response,
+          503,
+          'MESSAGING_UNAVAILABLE',
+          'Messaging belum tersedia.'
+        );
+      return success(
+        request,
+        response,
+        await messagingRepository.getHandoffNotificationSetting(
+          requestContext(request).session!.tenantId
+        )
+      );
+    }
+  );
+
+  app.post(
+    '/api/admin/v1/handoff-notification-settings',
+    authenticate,
+    requireRoutePermission('POST', '/api/admin/v1/handoff-notification-settings'),
+    requireCsrf,
+    async (request, response) => {
+      const parsed = handoffNotificationUpdateRequestSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return failure(request, response, 400, 'INVALID_REQUEST', 'Konfigurasi CS tidak valid.');
+      }
+      if (!messagingRepository)
+        return failure(
+          request,
+          response,
+          503,
+          'MESSAGING_UNAVAILABLE',
+          'Messaging belum tersedia.'
+        );
+      const session = requestContext(request).session!;
+      const result = await messagingRepository.updateHandoffNotificationSetting({
+        tenantId: session.tenantId,
+        actorUserId: session.userId,
+        phone: parsed.data.phone,
+        enabled: parsed.data.enabled,
+        expectedRevision: parsed.data.expectedRevision,
+        reason: parsed.data.reason,
+        requestId: requestContext(request).meta.requestId
+      });
+      if (result.status === 'revision_conflict') {
+        return failure(
+          request,
+          response,
+          409,
+          'REVISION_CONFLICT',
+          'Konfigurasi berubah di tab lain. Muat ulang lalu coba lagi.'
+        );
+      }
+      return success(request, response, result.value);
     }
   );
 

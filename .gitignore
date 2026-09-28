@@ -48,12 +48,24 @@ yarn-error.log*
 .envrc
 .direnv/
 .secrets/
+secrets/
+credentials.json
+credentials.*.json
+service-account*.json
+*-service-account.json
 *.secret
 *.secrets
+*.credentials
+*.token
 *.pem
 *.key
 *.p12
 *.pfx
+*.jks
+*.keystore
+*.kdbx
+id_rsa
+id_ed25519
 !*.example.pem
 !*.example.key
 

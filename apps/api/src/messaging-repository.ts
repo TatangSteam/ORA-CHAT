@@ -68,7 +68,36 @@ export interface AutomatedInboundResponseResult {
   messageId: string;
   outboxMessageId: string;
   handoffTaskId: string | null;
+  notificationOutboxMessageId: string | null;
 }
+
+const handoffReasonLabel = (reasonCode: string): string => {
+  if (reasonCode === 'restricted_or_emergency') return 'Perlu bantuan manusia segera';
+  if (reasonCode === 'insufficient_medical_grounding' || reasonCode === 'medical_review_required') {
+    return 'Perlu evaluasi tim/dokter';
+  }
+  return 'Perlu tindak lanjut CS';
+};
+
+export const handoffNotificationContent = (input: {
+  displayName: string | null;
+  normalizedPhone: string;
+  question: string;
+  reasonCode: string;
+}): string => {
+  const displayName = input.displayName?.trim() || 'Member';
+  const question = input.question.replace(/\s+/gu, ' ').trim().slice(0, 2_000);
+  return [
+    `[RahoAI] Ada Handoff masuk dari ${displayName}`,
+    '',
+    `Member: ${displayName}`,
+    `WhatsApp: +${input.normalizedPhone}`,
+    `Pertanyaan: ${question}`,
+    `Alasan: ${handoffReasonLabel(input.reasonCode)}`,
+    '',
+    'Silakan buka Control Room > Handoff untuk menindaklanjuti.'
+  ].join('\n');
+};
 
 const publicContact = (contact: {
   id: string;
@@ -724,16 +753,34 @@ export class PrismaMessagingRepository {
     reasonCode: string;
     traceId: string | null;
     now: Date;
+    customerQuestion: string;
+    csNotificationPhone?: string | undefined;
   }): Promise<AutomatedInboundResponseResult | null> {
     const conversation = await this.prisma.conversation.findFirst({
       where: { id: input.conversationId, tenantId: input.tenantId },
-      select: { id: true }
+      select: {
+        id: true,
+        contact: { select: { displayName: true, normalizedPhone: true } }
+      }
     });
     if (!conversation) return null;
+    const persistedNotificationSetting = await this.prisma.handoffNotificationSetting.findUnique({
+      where: { tenantId: input.tenantId },
+      select: { enabled: true, normalizedPhone: true }
+    });
+    const csNotificationPhone = persistedNotificationSetting
+      ? persistedNotificationSetting.enabled
+        ? persistedNotificationSetting.normalizedPhone
+        : null
+      : input.csNotificationPhone
+        ? normalizeIndonesianPhone(input.csNotificationPhone)
+        : null;
     return this.prisma.$transaction(async (tx) => {
       const messageId = generateUuidV7();
       const outboxMessageId = generateUuidV7();
       let handoffTaskId: string | null = null;
+      let notificationOutboxMessageId: string | null = null;
+      let createdNewHandoff = false;
       await tx.message.create({
         data: {
           id: messageId,
@@ -782,6 +829,7 @@ export class PrismaMessagingRepository {
           handoffTaskId = existing.id;
         } else {
           handoffTaskId = generateUuidV7();
+          createdNewHandoff = true;
           await tx.handoffTask.create({
             data: {
               id: handoffTaskId,
@@ -794,6 +842,95 @@ export class PrismaMessagingRepository {
           });
         }
       }
+      if (
+        createdNewHandoff &&
+        csNotificationPhone &&
+        csNotificationPhone !== conversation.contact.normalizedPhone
+      ) {
+        const providerJid = `${csNotificationPhone}@s.whatsapp.net`;
+        const csContact = await tx.contact.upsert({
+          where: {
+            tenantId_normalizedPhone: {
+              tenantId: input.tenantId,
+              normalizedPhone: csNotificationPhone
+            }
+          },
+          create: {
+            id: generateUuidV7(),
+            tenantId: input.tenantId,
+            normalizedPhone: csNotificationPhone,
+            providerJid,
+            displayName: 'Notifikasi CS',
+            consentStatus: 'opted_in'
+          },
+          update: { providerJid }
+        });
+        const csConversation = await tx.conversation.upsert({
+          where: {
+            tenantId_contactId_channel: {
+              tenantId: input.tenantId,
+              contactId: csContact.id,
+              channel: 'whatsapp'
+            }
+          },
+          create: {
+            id: generateUuidV7(),
+            tenantId: input.tenantId,
+            contactId: csContact.id,
+            channel: 'whatsapp',
+            status: 'open',
+            handlingMode: 'human',
+            lastMessageAt: input.now
+          },
+          update: { status: 'open', handlingMode: 'human', lastMessageAt: input.now }
+        });
+        const notificationMessageId = generateUuidV7();
+        notificationOutboxMessageId = generateUuidV7();
+        const notificationContent = handoffNotificationContent({
+          displayName: conversation.contact.displayName,
+          normalizedPhone: conversation.contact.normalizedPhone,
+          question: input.customerQuestion,
+          reasonCode: input.reasonCode
+        });
+        await tx.message.create({
+          data: {
+            id: notificationMessageId,
+            tenantId: input.tenantId,
+            conversationId: csConversation.id,
+            direction: 'outgoing',
+            source: 'rule',
+            content: notificationContent.slice(0, 4_096),
+            status: 'queued',
+            occurredAt: input.now,
+            events: {
+              create: {
+                id: generateUuidV7(),
+                tenantId: input.tenantId,
+                eventType: 'handoff.notification.created',
+                toStatus: 'queued',
+                safeMetadata: { handoffTaskId, triggerMessageId: input.triggerMessageId },
+                occurredAt: input.now
+              }
+            },
+            outbox: {
+              create: {
+                id: notificationOutboxMessageId,
+                tenantId: input.tenantId,
+                deterministicJobId: deterministicJobId(
+                  'outbound.delivery',
+                  input.tenantId,
+                  notificationOutboxMessageId
+                ),
+                availableAt: input.now
+              }
+            }
+          }
+        });
+        await tx.contact.update({
+          where: { id: csContact.id },
+          data: { lastOutboundAt: input.now }
+        });
+      }
       await tx.conversation.update({
         where: { id: input.conversationId },
         data: {
@@ -801,7 +938,7 @@ export class PrismaMessagingRepository {
           ...(input.shouldHandoff ? { followUpRequired: true, handlingMode: 'human' } : {})
         }
       });
-      return { messageId, outboxMessageId, handoffTaskId };
+      return { messageId, outboxMessageId, handoffTaskId, notificationOutboxMessageId };
     });
   }
 
@@ -817,6 +954,104 @@ export class PrismaMessagingRepository {
       ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {})
     });
     return page(rows, query.limit);
+  }
+
+  public async getHandoffNotificationSetting(tenantId: string) {
+    const setting = await this.prisma.handoffNotificationSetting.findUnique({
+      where: { tenantId },
+      select: {
+        normalizedPhone: true,
+        enabled: true,
+        revision: true,
+        updatedAt: true
+      }
+    });
+    return setting
+      ? {
+          phone: setting.normalizedPhone,
+          enabled: setting.enabled,
+          revision: setting.revision,
+          updatedAt: setting.updatedAt
+        }
+      : { phone: null, enabled: false, revision: 0, updatedAt: null };
+  }
+
+  public async updateHandoffNotificationSetting(input: {
+    tenantId: string;
+    actorUserId: string;
+    phone: string | null;
+    enabled: boolean;
+    expectedRevision: number;
+    reason: string;
+    requestId: string;
+  }) {
+    const normalizedPhone = input.phone ? normalizeIndonesianPhone(input.phone) : null;
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.handoffNotificationSetting.findUnique({
+        where: { tenantId: input.tenantId },
+        select: { revision: true }
+      });
+      if (!existing) {
+        if (input.expectedRevision !== 0) return { status: 'revision_conflict' as const };
+        try {
+          await tx.handoffNotificationSetting.create({
+            data: {
+              tenantId: input.tenantId,
+              normalizedPhone,
+              enabled: input.enabled,
+              revision: 1,
+              updatedByUserId: input.actorUserId
+            }
+          });
+        } catch (error) {
+          if (isUniqueConflict(error)) return { status: 'revision_conflict' as const };
+          throw error;
+        }
+      } else {
+        if (existing.revision !== input.expectedRevision) {
+          return { status: 'revision_conflict' as const };
+        }
+        const updated = await tx.handoffNotificationSetting.updateMany({
+          where: { tenantId: input.tenantId, revision: input.expectedRevision },
+          data: {
+            normalizedPhone,
+            enabled: input.enabled,
+            revision: { increment: 1 },
+            updatedByUserId: input.actorUserId
+          }
+        });
+        if (updated.count !== 1) return { status: 'revision_conflict' as const };
+      }
+      await this.audit(
+        tx,
+        input.tenantId,
+        input.actorUserId,
+        'handoff.notification.updated',
+        'HandoffNotificationSetting',
+        input.tenantId,
+        input.requestId,
+        input.reason,
+        { enabled: input.enabled, phoneConfigured: normalizedPhone !== null }
+      );
+      const value = await tx.handoffNotificationSetting.findUniqueOrThrow({
+        where: { tenantId: input.tenantId },
+        select: {
+          normalizedPhone: true,
+          enabled: true,
+          revision: true,
+          updatedAt: true
+        }
+      });
+      return {
+        status: 'ok' as const,
+        value: {
+          phone: value.normalizedPhone,
+          enabled: value.enabled,
+          revision: value.revision,
+          updatedAt: value.updatedAt
+        }
+      };
+    });
   }
 
   public async cancelOutbox(

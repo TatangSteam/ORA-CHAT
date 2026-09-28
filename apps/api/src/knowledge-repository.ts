@@ -18,6 +18,11 @@ import {
   type KnowledgeLifecycleTransition
 } from '@raho/contracts';
 import { generateUuidV7, openCredential, Prisma, type PrismaClient } from '@raho/db';
+import {
+  answerNearestLocationQuestion,
+  type Geocoder,
+  NominatimGeocoder
+} from './location-distance.js';
 
 const hash = (value: string | Buffer): string => createHash('sha256').update(value).digest('hex');
 const normalizeQuestion = (value: string): string =>
@@ -28,6 +33,11 @@ const redactQuestion = (value: string): string =>
     .replace(/(?:\+?62|0)[\d\s-]{8,}/gu, '[nomor]')
     .slice(0, 500);
 const safeJson = (value: unknown): Prisma.InputJsonValue => value as Prisma.InputJsonValue;
+
+export const CUSTOMER_ADMIN_HANDOFF_RESPONSE =
+  'Maaf, saya belum dapat memastikan jawaban untuk pertanyaan tersebut. Saya akan menghubungkan Anda ke admin CS agar dapat dibantu lebih lanjut.';
+export const CUSTOMER_INTEREST_HANDOFF_RESPONSE =
+  'Baik, saya langsung teruskan minat Anda ke admin CS agar dibantu proses selanjutnya. Mohon tunggu, tim kami akan menindaklanjuti.';
 
 const audit = (
   tenantId: string,
@@ -86,12 +96,14 @@ const LEXICAL_STOP_WORDS = new Set([
   'aja',
   'akan',
   'aku',
+  'admin',
   'anda',
   'apa',
   'apakah',
   'atau',
   'bagaimana',
   'berapa',
+  'berupa',
   'bisa',
   'buat',
   'dan',
@@ -116,13 +128,18 @@ const LEXICAL_STOP_WORDS = new Set([
   'nih',
   'nya',
   'pada',
+  'pagi',
   'saya',
+  'selamat',
+  'siang',
   'siapa',
+  'sore',
   'tanya',
   'tentang',
   'tidak',
   'tolong',
   'untuk',
+  'malam',
   'ya',
   'yang'
 ]);
@@ -154,6 +171,7 @@ const TYPO_VOCABULARY = [
   'bubble',
   'dokter',
   'harga',
+  'homecare',
   'jadwal',
   'kesehatan',
   'konsultasi',
@@ -217,7 +235,12 @@ const normalizeLexicalToken = (token: string): string => {
 
 export const lexicalQueryTokens = (value: string): string[] =>
   (() => {
-    const normalized = value.normalize('NFKC').toLocaleLowerCase('id-ID');
+    const normalized = value
+      .normalize('NFKC')
+      .toLocaleLowerCase('id-ID')
+      .replace(/\bnano[\s-]*bu(?:b)?bles?\b/gu, 'nano bubble')
+      .replace(/\bhome[\s-]+care\b/gu, 'homecare')
+      .replace(/\bgaso[\s-]+transmitters?\b/gu, 'gasotransmitter');
     const tokens =
       normalized
         .match(/[\p{L}\p{N}]+/gu)
@@ -298,6 +321,14 @@ export const unsupportedGeneralAssistantResponse = (value: string): string | nul
     ? 'Maaf, saya khusus membantu informasi dan layanan RAHO Premier. Saya tidak dapat membuat kode, website, atau tugas umum lainnya.'
     : null;
 
+const CUSTOMER_INTEREST_PATTERN =
+  /\b(?:tertarik|berminat)\b|\b(?:mau|ingin|hendak) (?:daftar|mendaftar|booking|reservasi|memesan|pesan|jadwalkan|lanjut|ambil paket|ikut program)\b|\b(?:bagaimana|gimana|cara) (?:daftar|mendaftar|booking|reservasi|memesan|melanjutkan)\b/u;
+
+export const customerInterestHandoffResponse = (value: string): string | null =>
+  CUSTOMER_INTEREST_PATTERN.test(normalizeGreeting(value))
+    ? CUSTOMER_INTEREST_HANDOFF_RESPONSE
+    : null;
+
 const isContextDependentQuestion = (question: string): boolean => {
   const tokens = lexicalQueryTokens(question);
   return (
@@ -333,22 +364,32 @@ export const requiresMedicalEvidenceFallback = (
   sourceContents: readonly string[]
 ): boolean => {
   if (!MEDICAL_DECISION_PATTERN.test(question)) return false;
+  const evidence = normalizeQuestion(sourceContents.join(' '));
+  if (/\baman\b/iu.test(question)) {
+    const explicitlyAboutSafety = /\b(?:aman|keamanan)\b/iu.test(evidence);
+    const describesSafetyProcess =
+      /\bkonsultasi\b/iu.test(evidence) &&
+      /\bevaluasi\b/iu.test(evidence) &&
+      /\b(?:dokter|prosedur|tenaga profesional)\b/iu.test(evidence);
+    if (!explicitlyAboutSafety && !describesSafetyProcess) return true;
+  }
   const specificTokens = lexicalQueryTokens(question).filter(
     (token) => !GENERIC_MEDICAL_TOKENS.has(token)
   );
   if (specificTokens.length === 0) return false;
-  const evidence = normalizeQuestion(sourceContents.join(' '));
   return specificTokens.some((token) => !evidence.includes(token));
 };
 
-const chunkLexicalText = (text: string, size = 1_600, overlap = 200) => {
+export const chunkLexicalText = (text: string, size = 1_600, overlap = 200) => {
+  if (overlap < 0 || size <= overlap) throw new Error('INVALID_CHUNK_CONFIGURATION');
   const chunks: Array<{
     sequence: number;
     content: string;
     contentHash: string;
     tokenEstimate: number;
   }> = [];
-  for (let start = 0; start < text.length; start += size - overlap) {
+  let start = 0;
+  while (start < text.length) {
     let end = Math.min(text.length, start + size);
     if (end < text.length) {
       const boundary = text.lastIndexOf(' ', end);
@@ -364,6 +405,7 @@ const chunkLexicalText = (text: string, size = 1_600, overlap = 200) => {
       });
     }
     if (end >= text.length) break;
+    start = Math.max(start + 1, end - overlap);
   }
   return chunks;
 };
@@ -440,7 +482,8 @@ export class PrismaKnowledgeRepository {
     private readonly prisma: PrismaClient,
     private readonly masterKey: Buffer,
     private readonly transport: ProviderHttpTransport,
-    private readonly now: () => Date = () => new Date()
+    private readonly now: () => Date = () => new Date(),
+    private readonly geocoder: Geocoder = new NominatimGeocoder()
   ) {}
 
   public listCategories(tenantId: string) {
@@ -1051,6 +1094,130 @@ export class PrismaKnowledgeRepository {
     return semantic.status === 'ok' ? semantic : this.lexicalSearch(tenantId, query, limit);
   }
 
+  private async exactPublishedFaqAnswer(tenantId: string, question: string) {
+    const matches = await this.prisma.knowledgeQuestionVariant.findMany({
+      where: {
+        tenantId,
+        normalizedQuestion: normalizeQuestion(question),
+        itemVersion: {
+          tenantId,
+          status: 'published',
+          publishedFor: {
+            is: { tenantId, status: 'published' }
+          }
+        }
+      },
+      select: {
+        itemVersion: {
+          select: {
+            id: true,
+            answer: true,
+            lexicalChunks: {
+              where: { tenantId },
+              orderBy: [{ sequence: 'asc' }, { id: 'asc' }],
+              take: 1
+            }
+          }
+        }
+      },
+      orderBy: { id: 'asc' },
+      take: 2
+    });
+    if (matches.length !== 1) return null;
+    const version = matches[0]!.itemVersion;
+    const chunk = version.lexicalChunks[0];
+    return {
+      answer: version.answer,
+      versionId: version.id,
+      sources: chunk
+        ? [
+            {
+              id: chunk.id,
+              content: chunk.content,
+              documentId: null,
+              itemVersionId: version.id,
+              sourceKind: 'lexical' as const,
+              score: 1,
+              label: 'K1',
+              preview: chunk.content.slice(0, 300)
+            }
+          ]
+        : []
+    };
+  }
+
+  private async nanoBubbleInfusionSafetyAnswer(tenantId: string, question: string) {
+    const tokens = new Set(lexicalQueryTokens(question));
+    if (
+      !tokens.has('nano') ||
+      !tokens.has('bubble') ||
+      !tokens.has('infus') ||
+      !tokens.has('aman')
+    ) {
+      return null;
+    }
+
+    const normalizedQuestions = [
+      normalizeQuestion('Apakah terapi RAHO menggunakan infus?'),
+      normalizeQuestion('Apakah RAHO aman?')
+    ];
+    const matches = await this.prisma.knowledgeQuestionVariant.findMany({
+      where: {
+        tenantId,
+        normalizedQuestion: { in: normalizedQuestions },
+        itemVersion: {
+          tenantId,
+          status: 'published',
+          publishedFor: {
+            is: { tenantId, status: 'published' }
+          }
+        }
+      },
+      select: {
+        normalizedQuestion: true,
+        itemVersion: {
+          select: {
+            id: true,
+            answer: true,
+            lexicalChunks: {
+              where: { tenantId },
+              orderBy: [{ sequence: 'asc' }, { id: 'asc' }],
+              take: 1
+            }
+          }
+        }
+      },
+      orderBy: { id: 'asc' }
+    });
+    const orderedMatches = normalizedQuestions.map((normalizedQuestion) =>
+      matches.filter((match) => match.normalizedQuestion === normalizedQuestion)
+    );
+    if (orderedMatches.some((matchingVariants) => matchingVariants.length !== 1)) return null;
+
+    const versions = orderedMatches.map((matchingVariants) => matchingVariants[0]!.itemVersion);
+    return {
+      answer: versions.map(({ answer }) => answer.trim()).join('\n\n'),
+      versionIds: versions.map(({ id }) => id),
+      sources: versions.flatMap((version, index) => {
+        const chunk = version.lexicalChunks[0];
+        return chunk
+          ? [
+              {
+                id: chunk.id,
+                content: chunk.content,
+                documentId: null,
+                itemVersionId: version.id,
+                sourceKind: 'lexical' as const,
+                score: 1,
+                label: `K${index + 1}`,
+                preview: chunk.content.slice(0, 300)
+              }
+            ]
+          : [];
+      })
+    };
+  }
+
   public async answer(
     tenantId: string,
     question: string,
@@ -1072,6 +1239,78 @@ export class PrismaKnowledgeRepository {
         fallbackReason: 'restricted_or_emergency',
         latencyMs: Math.round(performance.now() - started),
         sources: []
+      });
+    }
+    const customerInterest = customerInterestHandoffResponse(question);
+    if (customerInterest) {
+      return this.persistTrace({
+        tenantId,
+        question,
+        requestId,
+        status: 'handoff',
+        shouldHandoff: true,
+        answer: customerInterest,
+        fallbackReason: 'customer_interest',
+        latencyMs: Math.round(performance.now() - started),
+        safeMetadata: { responseMode: 'deterministic_customer_interest' },
+        sources: []
+      });
+    }
+    const exactFaq = await this.exactPublishedFaqAnswer(tenantId, question);
+    if (exactFaq) {
+      return this.persistTrace({
+        tenantId,
+        question,
+        requestId,
+        status: 'answered',
+        shouldHandoff: false,
+        answer: exactFaq.answer,
+        fallbackReason: null,
+        latencyMs: Math.round(performance.now() - started),
+        safeMetadata: {
+          responseMode: 'deterministic_exact_faq',
+          itemVersionId: exactFaq.versionId
+        },
+        sources: exactFaq.sources
+      });
+    }
+    const homecareFaq = lexicalQueryTokens(question).includes('homecare')
+      ? await this.exactPublishedFaqAnswer(tenantId, 'Apakah RAHO menyediakan layanan homecare?')
+      : null;
+    if (homecareFaq) {
+      return this.persistTrace({
+        tenantId,
+        question,
+        requestId,
+        status: 'answered',
+        shouldHandoff: false,
+        answer: homecareFaq.answer,
+        fallbackReason: null,
+        latencyMs: Math.round(performance.now() - started),
+        safeMetadata: {
+          responseMode: 'deterministic_intent_faq',
+          intent: 'homecare',
+          itemVersionId: homecareFaq.versionId
+        },
+        sources: homecareFaq.sources
+      });
+    }
+    const nanoBubbleInfusionSafety = await this.nanoBubbleInfusionSafetyAnswer(tenantId, question);
+    if (nanoBubbleInfusionSafety) {
+      return this.persistTrace({
+        tenantId,
+        question,
+        requestId,
+        status: 'answered',
+        shouldHandoff: false,
+        answer: nanoBubbleInfusionSafety.answer,
+        fallbackReason: null,
+        latencyMs: Math.round(performance.now() - started),
+        safeMetadata: {
+          responseMode: 'deterministic_compound_faq',
+          itemVersionIds: nanoBubbleInfusionSafety.versionIds
+        },
+        sources: nanoBubbleInfusionSafety.sources
       });
     }
     const greeting = standaloneGreetingResponse(question);
@@ -1119,6 +1358,28 @@ export class PrismaKnowledgeRepository {
         sources: []
       });
     }
+    const previousCustomerMessages = conversationContext
+      .filter(({ role }) => role === 'customer')
+      .map(({ content }) => content);
+    const nearestLocation = await answerNearestLocationQuestion(
+      question,
+      this.geocoder,
+      previousCustomerMessages
+    );
+    if (nearestLocation) {
+      return this.persistTrace({
+        tenantId,
+        question,
+        requestId,
+        status: nearestLocation.status,
+        shouldHandoff: false,
+        answer: nearestLocation.answer,
+        fallbackReason: nearestLocation.fallbackReason,
+        latencyMs: Math.round(performance.now() - started),
+        safeMetadata: nearestLocation.metadata,
+        sources: []
+      });
+    }
     const context = conversationContext.slice(-5);
     const contextCustomerQuestions = context
       .filter(({ role }) => role === 'customer')
@@ -1126,6 +1387,7 @@ export class PrismaKnowledgeRepository {
       .map(({ content }) => content.slice(0, 400));
     const contextDependent = isContextDependentQuestion(question);
     const medicalQuestion = isMedicalInformationQuestion(question);
+    const medicalReviewRequired = MEDICAL_DECISION_PATTERN.test(question);
     const retrievalQuery = contextDependent
       ? [question, ...contextCustomerQuestions.reverse()].join(' ')
       : question;
@@ -1138,19 +1400,23 @@ export class PrismaKnowledgeRepository {
       const clarificationRequired =
         lexicalQueryTokens(question).length === 0 ||
         (contextDependent && contextCustomerQuestions.length === 0);
+      const handoffRequired = medicalReviewRequired && !clarificationRequired;
       return this.persistTrace({
         tenantId,
         question,
         requestId,
-        status: 'fallback',
-        shouldHandoff: false,
+        status: handoffRequired ? 'handoff' : 'fallback',
+        shouldHandoff: handoffRequired,
         answer: clarificationRequired
           ? 'Boleh diperjelas topik yang Anda maksud? Saya akan membantu mencarikan informasi yang sesuai.'
-          : medicalQuestion
-            ? 'Maaf, informasi medis tersebut belum tersedia di knowledge RAHO. Demi keamanan, silakan konsultasi dan menjalani evaluasi dokter; saya tidak akan menebak diagnosis atau rekomendasi terapi.'
-            : 'Maaf, informasi tersebut belum tersedia di knowledge RAHO. Anda bisa menanyakan topik lain atau menghubungi admin.',
-        fallbackReason:
-          retrieval.status === 'ok'
+          : medicalReviewRequired
+            ? 'Untuk pertanyaan mengenai kecocokan atau kondisi medis, evaluasi langsung oleh tim/dokter diperlukan. Saya teruskan pertanyaan ini ke tim CS agar dapat ditindaklanjuti.'
+            : medicalQuestion
+              ? 'Maaf, informasi medis tersebut belum tersedia di knowledge RAHO. Demi keamanan, silakan konsultasi dan menjalani evaluasi dokter; saya tidak akan menebak diagnosis atau rekomendasi terapi.'
+              : 'Maaf, informasi tersebut belum tersedia di knowledge RAHO. Anda bisa menanyakan topik lain atau menghubungi admin.',
+        fallbackReason: handoffRequired
+          ? 'medical_review_required'
+          : retrieval.status === 'ok'
             ? clarificationRequired
               ? 'clarification_required'
               : 'insufficient_grounding'
@@ -1174,11 +1440,11 @@ export class PrismaKnowledgeRepository {
         tenantId,
         question,
         requestId,
-        status: 'fallback',
-        shouldHandoff: false,
+        status: 'handoff',
+        shouldHandoff: true,
         answer:
-          'Maaf, informasi medis tersebut belum tersedia secara spesifik di knowledge RAHO. Demi keamanan, silakan konsultasi dan menjalani evaluasi dokter; saya tidak akan menebak diagnosis atau rekomendasi terapi.',
-        fallbackReason: 'insufficient_medical_grounding',
+          'Untuk pertanyaan mengenai kecocokan atau kondisi medis, evaluasi langsung oleh tim/dokter diperlukan. Saya teruskan pertanyaan ini ke tim CS agar dapat ditindaklanjuti.',
+        fallbackReason: 'medical_review_required',
         latencyMs: Math.round(performance.now() - started),
         safeMetadata: {
           retrievalMode: retrieval.retrievalMode,
@@ -1265,10 +1531,9 @@ export class PrismaKnowledgeRepository {
         tenantId,
         question,
         requestId,
-        status: 'fallback',
-        shouldHandoff: false,
-        answer:
-          'Maaf, jawaban ter-grounding tidak dapat divalidasi. Silakan coba pertanyaan lain atau hubungi admin.',
+        status: 'handoff',
+        shouldHandoff: true,
+        answer: CUSTOMER_ADMIN_HANDOFF_RESPONSE,
         fallbackReason: 'invalid_model_output',
         latencyMs: Math.round(performance.now() - started),
         chatConnectionId: chat.connection.id,

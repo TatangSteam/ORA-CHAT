@@ -27,6 +27,7 @@ export interface SessionIdentity extends LoginIdentity {
 }
 
 export interface NewSession {
+  sessionId: string;
   identity: LoginIdentity;
   tokenHash: string;
   csrfSecretHash: string;
@@ -97,7 +98,6 @@ export interface ApiRepository {
   recordLoginFailure(identity: LoginIdentity, requestId: string): Promise<void>;
   createSession(input: NewSession): Promise<{ sessionId: string }>;
   findSession(tokenHash: string): Promise<SessionIdentity | null>;
-  rotateCsrf(sessionId: string, csrfSecretHash: string): Promise<void>;
   touchSession(sessionId: string, idleExpiresAt: Date, now: Date): Promise<void>;
   revokeSession(sessionId: string, requestId: string, reason: string): Promise<void>;
   changePassword(
@@ -206,7 +206,7 @@ export class PrismaApiRepository implements ApiRepository {
     return this.prisma.$transaction(async (tx) => {
       const session = await tx.adminSession.create({
         data: {
-          id: generateUuidV7(),
+          id: input.sessionId,
           membershipId: input.identity.membershipId,
           adminUserId: input.identity.userId,
           tenantId: input.identity.tenantId,
@@ -264,10 +264,6 @@ export class PrismaApiRepository implements ApiRepository {
       revokedAt: session.revokedAt,
       csrfSecretHash: session.csrfSecretHash
     };
-  }
-
-  public async rotateCsrf(sessionId: string, csrfSecretHash: string): Promise<void> {
-    await this.prisma.adminSession.update({ where: { id: sessionId }, data: { csrfSecretHash } });
   }
 
   public async touchSession(sessionId: string, idleExpiresAt: Date, now: Date): Promise<void> {

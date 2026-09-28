@@ -7,7 +7,7 @@ import {
   extractDocumentText
 } from './document-content.js';
 import { createHash } from 'node:crypto';
-import { deflateRawSync } from 'node:zlib';
+import { deflateRawSync, deflateSync } from 'node:zlib';
 
 const docxFixture = (xml: string): Buffer => {
   const name = Buffer.from('word/document.xml');
@@ -35,13 +35,57 @@ const docxFixture = (xml: string): Buffer => {
   return Buffer.concat([local, name, compressed, central, name, eocd]);
 };
 
+const pdfFixture = (operator: string, compressed = false): Buffer => {
+  const source = Buffer.from(`BT /F1 12 Tf 72 720 Td ${operator} ET\n`, 'latin1');
+  const stream = compressed ? deflateSync(source) : source;
+  const filter = compressed ? ' /Filter /FlateDecode' : '';
+  const objects = [
+    Buffer.from('<< /Type /Catalog /Pages 2 0 R >>', 'latin1'),
+    Buffer.from('<< /Type /Pages /Kids [3 0 R] /Count 1 >>', 'latin1'),
+    Buffer.from(
+      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+      'latin1'
+    ),
+    Buffer.from('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>', 'latin1'),
+    Buffer.concat([
+      Buffer.from(`<< /Length ${stream.length}${filter} >>\nstream\n`, 'latin1'),
+      stream,
+      Buffer.from('\nendstream', 'latin1')
+    ])
+  ];
+  const parts = [Buffer.from('%PDF-1.4\n', 'latin1')];
+  const offsets = [0];
+  let length = parts[0]!.length;
+  for (const [index, object] of objects.entries()) {
+    offsets.push(length);
+    const entry = Buffer.concat([
+      Buffer.from(`${index + 1} 0 obj\n`, 'latin1'),
+      object,
+      Buffer.from('\nendobj\n', 'latin1')
+    ]);
+    parts.push(entry);
+    length += entry.length;
+  }
+  const xref = length;
+  parts.push(
+    Buffer.from(
+      `xref\n0 6\n0000000000 65535 f \n${offsets
+        .slice(1)
+        .map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`)
+        .join('')}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`,
+      'latin1'
+    )
+  );
+  return Buffer.concat(parts);
+};
+
 describe('private document validation pipeline', () => {
-  it('validates checksum and MIME before extracting UTF-8 text', () => {
+  it('validates checksum and MIME before extracting UTF-8 text', async () => {
     const content = Buffer.from('Jam layanan Senin sampai Jumat, pukul 08.00–16.00.', 'utf8');
     const digest = createHash('sha256').update(content).digest('hex');
     expect(detectDocumentMime(content)).toBe('text/plain');
     const mime = assertSafeDocument(content, 'text/plain', digest);
-    expect(extractDocumentText(content, mime)).toContain('Jam layanan');
+    expect(await extractDocumentText(content, mime)).toContain('Jam layanan');
   });
 
   it.each([
@@ -66,14 +110,47 @@ describe('private document validation pipeline', () => {
     expect(first.every(({ tokenEstimate }) => tokenEstimate > 0)).toBe(true);
   });
 
-  it('extracts supported PDF and DOCX containers', () => {
-    const pdf = Buffer.from('%PDF-1.4\nBT (Layanan PDF terverifikasi) Tj ET\n%%EOF', 'latin1');
-    expect(extractDocumentText(pdf, 'application/pdf')).toContain('Layanan PDF');
+  it('does not skip text when a whitespace boundary shortens a chunk', () => {
+    const longPrefix = 'A'.repeat(1_000);
+    const longToken = 'B'.repeat(700);
+    const chunks = chunkDocumentText(`${longPrefix} ${longToken}`, 1_600, 200);
+
+    expect(chunks.map(({ content }) => content.length)).toEqual([1_000, 901]);
+    expect(chunks.some(({ content }) => content.includes(longPrefix))).toBe(true);
+    expect(chunks.some(({ content }) => content.includes(longToken))).toBe(true);
+  });
+
+  it.each([
+    ['literal Tj', '(RAHO) Tj', false],
+    ['array TJ', '[(RAHO) -250 (Premier)] TJ', false],
+    ['hexadecimal Tj', '<5241484f> Tj', false],
+    ['compressed array TJ', '[(RAHO) -250 (Premier)] TJ', true]
+  ])('extracts PDF text using %s', async (_name, operator, compressed) => {
+    const text = await extractDocumentText(pdfFixture(operator, compressed), 'application/pdf');
+    expect(text).toContain('RAHO');
+    if (operator.includes('Premier')) expect(text).toContain('Premier');
+  });
+
+  it('rejects active PDF content and PDFs without a text layer', async () => {
+    const active = Buffer.concat([
+      pdfFixture('(RAHO) Tj'),
+      Buffer.from('\n% /JavaScript is not accepted', 'latin1')
+    ]);
+
+    await expect(extractDocumentText(active, 'application/pdf')).rejects.toThrow(
+      'PDF_ACTIVE_CONTENT'
+    );
+    await expect(extractDocumentText(pdfFixture(''), 'application/pdf')).rejects.toThrow(
+      'PDF_TEXT_UNAVAILABLE'
+    );
+  });
+
+  it('extracts a supported DOCX container', async () => {
     const docx = docxFixture(
       '<?xml version="1.0"?><w:document><w:body><w:p><w:r><w:t>Layanan DOCX terverifikasi</w:t></w:r></w:p></w:body></w:document>'
     );
     expect(
-      extractDocumentText(
+      await extractDocumentText(
         docx,
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       )

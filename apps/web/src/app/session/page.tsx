@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Shell } from '../../components/shell';
 import { api, ApiError } from '../../lib/api';
@@ -13,6 +13,11 @@ interface SessionState {
   lastErrorCode: string | null;
   revision: number;
   updatedAt: string;
+}
+
+interface ActiveQr {
+  url: string;
+  expiresAt: number;
 }
 
 type SessionAction = 'qr' | 'reconnect' | 'disconnect' | null;
@@ -36,19 +41,29 @@ const wait = (milliseconds: number) =>
 export default function SessionPage() {
   const [state, setState] = useState<SessionState | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [qrUrl, setQrUrl] = useState<string | null>(null);
+  const [qr, setQr] = useState<ActiveQr | null>(null);
   const [activeAction, setActiveAction] = useState<SessionAction>(null);
+  const qrUrlRef = useRef<string | null>(null);
+  const sessionStateRef = useRef<string | null>(null);
+
+  const replaceQr = useCallback((next: ActiveQr | null) => {
+    if (qrUrlRef.current) URL.revokeObjectURL(qrUrlRef.current);
+    qrUrlRef.current = next?.url ?? null;
+    setQr(next);
+  }, []);
 
   const load = useCallback(async () => {
     try {
       const { data } = await api<SessionState>('/session');
+      sessionStateRef.current = data.state;
       setState(data);
+      if (data.state !== 'qr_required') replaceQr(null);
       return data;
     } catch (error) {
       setNotice(error instanceof ApiError ? error.message : 'Status sesi gagal dimuat.');
       return null;
     }
-  }, []);
+  }, [replaceQr]);
 
   useEffect(() => {
     void load();
@@ -58,27 +73,60 @@ export default function SessionPage() {
 
   useEffect(
     () => () => {
-      if (qrUrl) URL.revokeObjectURL(qrUrl);
+      if (qrUrlRef.current) URL.revokeObjectURL(qrUrlRef.current);
     },
-    [qrUrl]
+    []
   );
 
-  const replaceQr = (nextUrl: string | null) => {
-    setQrUrl((current) => {
-      if (current) URL.revokeObjectURL(current);
-      return nextUrl;
-    });
-  };
+  useEffect(() => {
+    if (!qr) return;
+    const timeout = window.setTimeout(
+      () => {
+        replaceQr(null);
+        setNotice('QR kedaluwarsa. Menunggu QR baru dari adapter WhatsApp.');
+      },
+      Math.max(0, qr.expiresAt - Date.now())
+    );
+    return () => window.clearTimeout(timeout);
+  }, [qr, replaceQr]);
 
-  const fetchQr = async (): Promise<boolean> => {
+  const fetchQr = useCallback(async (): Promise<boolean> => {
     const response = await fetch('/api/admin/v1/session/qr', {
       credentials: 'same-origin',
       cache: 'no-store'
     });
     if (!response.ok) return false;
-    replaceQr(URL.createObjectURL(await response.blob()));
+    const expiresAtHeader = response.headers.get('x-qr-expires-at');
+    const parsedExpiresAt = expiresAtHeader ? Date.parse(expiresAtHeader) : Number.NaN;
+    const expiresAt = Number.isFinite(parsedExpiresAt) ? parsedExpiresAt : Date.now() + 60_000;
+    if (expiresAt <= Date.now()) return false;
+    const blob = await response.blob();
+    if (sessionStateRef.current !== 'qr_required') return false;
+    replaceQr({ url: URL.createObjectURL(blob), expiresAt });
     return true;
-  };
+  }, [replaceQr]);
+
+  useEffect(() => {
+    if (state?.state !== 'qr_required' || qr || activeAction !== null) return;
+    let cancelled = false;
+    let retry: number | undefined;
+    const poll = async () => {
+      try {
+        if (await fetchQr()) {
+          if (!cancelled) setNotice('QR aktif sementara. Pindai melalui menu Perangkat tertaut.');
+          return;
+        }
+      } catch {
+        // The next retry may succeed after a transient adapter or network failure.
+      }
+      if (!cancelled) retry = window.setTimeout(() => void poll(), 1_000);
+    };
+    void poll();
+    return () => {
+      cancelled = true;
+      if (retry !== undefined) window.clearTimeout(retry);
+    };
+  }, [activeAction, fetchQr, qr, state?.state]);
 
   const loadQr = async () => {
     if (!state) return;
@@ -94,6 +142,7 @@ export default function SessionPage() {
           method: 'POST',
           body: JSON.stringify({ expectedRevision: state.revision })
         });
+        await load();
       }
       for (let attempt = 0; attempt < 15; attempt += 1) {
         if (await fetchQr()) {
@@ -195,9 +244,9 @@ export default function SessionPage() {
             </div>
           </dl>
           <div className="qr-panel">
-            <div className={`qr-display ${qrUrl ? 'has-qr' : ''}`}>
-              {qrUrl ? (
-                <img src={qrUrl} alt="QR untuk menautkan perangkat WhatsApp" />
+            <div className={`qr-display ${qr ? 'has-qr' : ''}`}>
+              {qr ? (
+                <img src={qr.url} alt="QR untuk menautkan perangkat WhatsApp" />
               ) : (
                 <div>
                   <strong>QR belum ditampilkan</strong>

@@ -180,6 +180,32 @@ export const handoffResolveRequestSchema = z
   .object({ resolutionNote: z.string().trim().min(8).max(1000) })
   .strict();
 
+export const handoffNotificationUpdateRequestSchema = z
+  .object({
+    phone: z
+      .string()
+      .trim()
+      .min(8)
+      .max(32)
+      .refine((value) => {
+        try {
+          normalizeIndonesianPhone(value);
+          return true;
+        } catch {
+          return false;
+        }
+      }, 'Nomor WhatsApp Indonesia tidak valid')
+      .nullable(),
+    enabled: z.boolean(),
+    expectedRevision: z.number().int().nonnegative(),
+    reason: z.string().trim().min(8).max(500)
+  })
+  .strict()
+  .refine((value) => !value.enabled || value.phone !== null, {
+    message: 'Nomor CS wajib diisi saat notifikasi diaktifkan',
+    path: ['phone']
+  });
+
 export const chatbotRuleInputSchema = z
   .object({
     sequence: z.number().int().min(0).max(1000),

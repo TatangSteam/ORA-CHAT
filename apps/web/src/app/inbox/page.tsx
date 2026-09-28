@@ -1,16 +1,23 @@
 'use client';
 
-import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Shell } from '../../components/shell';
+import { useSession } from '../../components/use-session';
 import { api, ApiError } from '../../lib/api';
 import type { ConversationSummary, MessageSummary } from '../../lib/messaging';
 
 export default function InboxPage() {
+  const { user } = useSession();
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [selected, setSelected] = useState<ConversationSummary | null>(null);
   const [messages, setMessages] = useState<MessageSummary[]>([]);
   const [search, setSearch] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState<'all' | 'unread' | 'handoff' | 'follow_up'>(
+    'all'
+  );
+  const [modeFilter, setModeFilter] = useState<'all' | 'bot' | 'human'>('all');
   const [reply, setReply] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -18,6 +25,8 @@ export default function InboxPage() {
   const timelineRef = useRef<HTMLDivElement>(null);
   const followLatestRef = useRef(true);
   const selectedId = selected?.id;
+  const canSend = user?.permissions.includes('messages.send') ?? false;
+  const canManageHandoff = user?.permissions.includes('handoffs.manage') ?? false;
 
   const loadConversations = useCallback(async () => {
     const query = search ? `?search=${encodeURIComponent(search)}` : '';
@@ -40,6 +49,15 @@ export default function InboxPage() {
   useEffect(() => {
     void loadConversations().catch(() => setError('Inbox tidak dapat dimuat.'));
   }, [loadConversations]);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (priorityFilter !== 'all') params.set('priority', priorityFilter);
+    if (modeFilter !== 'all') params.set('mode', modeFilter);
+    const query = params.toString();
+    window.history.replaceState(null, '', query ? `/inbox?${query}` : '/inbox');
+  }, [modeFilter, priorityFilter, search]);
 
   useEffect(() => {
     followLatestRef.current = true;
@@ -136,6 +154,18 @@ export default function InboxPage() {
     }
   };
 
+  const visibleConversations = useMemo(
+    () =>
+      conversations.filter((conversation) => {
+        if (modeFilter !== 'all' && conversation.handlingMode !== modeFilter) return false;
+        if (priorityFilter === 'unread') return conversation.unreadCount > 0;
+        if (priorityFilter === 'handoff') return Boolean(conversation.activeHandoff);
+        if (priorityFilter === 'follow_up') return conversation.followUpRequired;
+        return true;
+      }),
+    [conversations, modeFilter, priorityFilter]
+  );
+
   return (
     <Shell eyebrow="Pesan" title="Inbox">
       <section className="inbox-layout">
@@ -160,11 +190,37 @@ export default function InboxPage() {
               placeholder="Cari nama atau nomor"
             />
           </label>
+          <div className="inbox-filters" aria-label="Filter percakapan">
+            <label>
+              <span className="sr-only">Prioritas</span>
+              <select
+                value={priorityFilter}
+                onChange={(event) => setPriorityFilter(event.target.value as typeof priorityFilter)}
+              >
+                <option value="all">Semua prioritas</option>
+                <option value="unread">Belum dibaca</option>
+                <option value="handoff">Handoff aktif</option>
+                <option value="follow_up">Perlu follow-up</option>
+              </select>
+            </label>
+            <label>
+              <span className="sr-only">Mode penanganan</span>
+              <select
+                value={modeFilter}
+                onChange={(event) => setModeFilter(event.target.value as typeof modeFilter)}
+              >
+                <option value="all">AI & admin</option>
+                <option value="bot">AI aktif</option>
+                <option value="human">Admin aktif</option>
+              </select>
+            </label>
+          </div>
           <div className="list-stack">
-            {conversations.map((conversation) => (
+            {visibleConversations.map((conversation) => (
               <button
                 className={selected?.id === conversation.id ? 'list-row selected' : 'list-row'}
                 key={conversation.id}
+                aria-pressed={selected?.id === conversation.id}
                 onClick={() => setSelected(conversation)}
               >
                 <span className="avatar">
@@ -184,9 +240,17 @@ export default function InboxPage() {
                 {conversation.unreadCount > 0 && (
                   <span className="count-badge">{conversation.unreadCount}</span>
                 )}
+                {conversation.activeHandoff ? (
+                  <span className="inbox-priority-tag">handoff</span>
+                ) : null}
+                {conversation.followUpRequired ? (
+                  <span className="inbox-priority-tag">follow-up</span>
+                ) : null}
               </button>
             ))}
-            {conversations.length === 0 && <p className="empty-state">Belum ada percakapan.</p>}
+            {visibleConversations.length === 0 && (
+              <p className="empty-state">Tidak ada percakapan yang sesuai filter.</p>
+            )}
           </div>
         </aside>
 
@@ -209,20 +273,22 @@ export default function InboxPage() {
                         : 'AI tidak membalas pesan'}
                     </small>
                   </span>
-                  <button
-                    aria-label={
-                      selected.handlingMode === 'bot'
-                        ? 'Nonaktifkan AI dan alihkan ke admin'
-                        : 'Aktifkan AI untuk percakapan ini'
-                    }
-                    aria-pressed={selected.handlingMode === 'bot'}
-                    className="automation-toggle"
-                    disabled={busy}
-                    onClick={() => void toggleAutomation()}
-                    type="button"
-                  >
-                    <span aria-hidden="true" className="automation-toggle-knob" />
-                  </button>
+                  {canManageHandoff ? (
+                    <button
+                      aria-label={
+                        selected.handlingMode === 'bot'
+                          ? 'Nonaktifkan AI dan alihkan ke admin'
+                          : 'Aktifkan AI untuk percakapan ini'
+                      }
+                      aria-pressed={selected.handlingMode === 'bot'}
+                      className="automation-toggle"
+                      disabled={busy}
+                      onClick={() => void toggleAutomation()}
+                      type="button"
+                    >
+                      <span aria-hidden="true" className="automation-toggle-knob" />
+                    </button>
+                  ) : null}
                 </div>
               </div>
               {notice && (
@@ -256,6 +322,11 @@ export default function InboxPage() {
                       {message.source} · {message.status} ·{' '}
                       {new Date(message.occurredAt).toLocaleTimeString('id-ID')}
                     </small>
+                    {message.status === 'unknown' ? (
+                      <Link className="message-status-link" href="/outbox">
+                        Status unknown — rekonsiliasi di Outbox
+                      </Link>
+                    ) : null}
                   </article>
                 ))}
                 {messages.length === 0 && <p className="empty-state">Timeline masih kosong.</p>}
@@ -270,10 +341,19 @@ export default function InboxPage() {
                     onChange={(event) => setReply(event.target.value)}
                     placeholder="Tulis pesan untuk kontak ini…"
                   />
+                  <small className="composer-meta">
+                    {reply.length.toLocaleString('id-ID')} / 4.096 karakter · dikirim melalui
+                    durable outbox
+                  </small>
                 </label>
-                <button className="primary-button" disabled={busy} type="submit">
+                <button className="primary-button" disabled={busy || !canSend} type="submit">
                   {busy ? 'Memproses…' : 'Kirim lewat outbox'}
                 </button>
+                {!canSend ? (
+                  <small className="composer-meta">
+                    Anda tidak memiliki izin untuk mengirim pesan.
+                  </small>
+                ) : null}
               </form>
             </>
           ) : (

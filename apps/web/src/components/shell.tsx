@@ -5,13 +5,14 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 
-import { api, setCsrfToken } from '../lib/api';
+import { api, markUserActivity, setCsrfToken } from '../lib/api';
 import { useSession } from './use-session';
 
 const navigation = [
   { href: '/overview', label: 'Beranda', permission: 'overview.read', icon: '⌂' },
   { href: '/inbox', label: 'Inbox', permission: 'messages.read', icon: '▤' },
   { href: '/contacts', label: 'Kontak', permission: 'contacts.read', icon: '◎' },
+  { href: '/agents', label: 'Agent AI', permission: 'chatbot.read', icon: '✦' },
   { href: '/chatbot', label: 'Chatbot', permission: 'chatbot.read', icon: '◇' },
   { href: '/ai-settings', label: 'Integrasi AI', permission: 'ai.settings.manage', icon: '◈' },
   { href: '/knowledge', label: 'Knowledge', permission: 'knowledge.read', icon: '▧' },
@@ -28,7 +29,13 @@ const messageNavigation = [
   { href: '/compose', label: 'Tulis pesan', permission: 'messages.send', icon: '✎' },
   { href: '/templates', label: 'Template', permission: 'templates.read', icon: '▣' },
   { href: '/outbox', label: 'Riwayat', permission: 'messages.read', icon: '≡' },
-  { href: '/handoffs', label: 'Handoff', permission: 'handoffs.read', icon: '↔' }
+  { href: '/handoffs', label: 'Handoff', permission: 'handoffs.read', icon: '↔' },
+  {
+    href: '/handoff-notifications',
+    label: 'Notifikasi CS',
+    permission: 'handoffs.read',
+    icon: '◌'
+  }
 ] as const;
 
 export const Shell = ({
@@ -43,6 +50,18 @@ export const Shell = ({
   const pathname = usePathname();
   const { user, loading } = useSession();
   const [whatsAppConnected, setWhatsAppConnected] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const activityEvents = ['pointerdown', 'keydown', 'touchstart', 'click'] as const;
+    for (const eventName of activityEvents) {
+      window.addEventListener(eventName, markUserActivity, { capture: true, passive: true });
+    }
+    return () => {
+      for (const eventName of activityEvents) {
+        window.removeEventListener(eventName, markUserActivity, { capture: true });
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!user?.permissions.includes('session.read')) return;
@@ -137,11 +156,7 @@ export const Shell = ({
           <div className="tenant-pill">
             <span
               className={`status-dot ${
-                whatsAppConnected === null
-                  ? 'muted'
-                  : whatsAppConnected
-                    ? 'healthy'
-                    : 'warning'
+                whatsAppConnected === null ? 'muted' : whatsAppConnected ? 'healthy' : 'warning'
               }`}
               role="img"
               aria-label={

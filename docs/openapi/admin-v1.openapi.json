@@ -832,6 +832,25 @@
         }
       }
     },
+    "/api/admin/v1/handoff-notification-settings": {
+      "get": {
+        "summary": "Read WhatsApp CS handoff notification settings",
+        "x-permission": "handoffs.read",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" } }
+      },
+      "post": {
+        "summary": "Update WhatsApp CS handoff notification settings",
+        "x-permission": "handoffs.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
     "/api/admin/v1/handoffs": {
       "get": {
         "summary": "List handoffs",

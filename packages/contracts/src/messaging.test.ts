@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   chatbotConfigRequestSchema,
+  handoffNotificationUpdateRequestSchema,
   maskPhone,
   normalizeIndonesianPhone,
   providerJidSchema
@@ -47,5 +48,32 @@ describe('messaging contracts', () => {
       ]
     });
     expect(result.success).toBe(false);
+  });
+
+  it('requires a valid Indonesian CS number when handoff notifications are enabled', () => {
+    expect(
+      handoffNotificationUpdateRequestSchema.safeParse({
+        phone: '081234567890',
+        enabled: true,
+        expectedRevision: 0,
+        reason: 'Mengaktifkan notifikasi CS'
+      }).success
+    ).toBe(true);
+    expect(
+      handoffNotificationUpdateRequestSchema.safeParse({
+        phone: null,
+        enabled: true,
+        expectedRevision: 0,
+        reason: 'Mengaktifkan notifikasi CS'
+      }).success
+    ).toBe(false);
+    expect(
+      handoffNotificationUpdateRequestSchema.safeParse({
+        phone: '15551234567',
+        enabled: false,
+        expectedRevision: 0,
+        reason: 'Menonaktifkan notifikasi CS'
+      }).success
+    ).toBe(false);
   });
 });

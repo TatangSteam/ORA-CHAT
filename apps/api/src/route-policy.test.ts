@@ -75,6 +75,8 @@ const expectedRoutes = [
   'POST /api/admin/v1/outbox/:id/cancel',
   'POST /api/admin/v1/outbox/:id/retry',
   'POST /api/admin/v1/outbox/:id/reconcile',
+  'GET /api/admin/v1/handoff-notification-settings',
+  'POST /api/admin/v1/handoff-notification-settings',
   'GET /api/admin/v1/handoffs',
   'POST /api/admin/v1/handoffs',
   'POST /api/admin/v1/handoffs/:id/assign',

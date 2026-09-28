@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createApp } from './app.js';
 import type { AiConnectionView, AiRepository } from './ai-repository.js';
 import { TenantEventHub } from './event-hub.js';
+import { SESSION_ABSOLUTE_MS } from './security.js';
 import type {
   ApiRepository,
   AuditInput,
@@ -26,7 +27,6 @@ beforeAll(async () => {
 
 class MemoryRepository implements ApiRepository {
   public readonly sessions = new Map<string, SessionIdentity>();
-  private sessionSequence = 4;
   public loginFailures = 0;
   public auditTenantId: string | null = null;
   public safetyTenantId: string | null = null;
@@ -58,8 +58,7 @@ class MemoryRepository implements ApiRepository {
     this.loginFailures += 1;
   }
   public async createSession(input: NewSession) {
-    const sessionId = `01988c36-6880-7000-8000-${String(this.sessionSequence).padStart(12, '0')}`;
-    this.sessionSequence += 1;
+    const sessionId = input.sessionId;
     this.sessions.set(input.tokenHash, {
       ...input.identity,
       sessionId,
@@ -74,12 +73,11 @@ class MemoryRepository implements ApiRepository {
   public async findSession(tokenHash: string) {
     return this.sessions.get(tokenHash) ?? null;
   }
-  public async rotateCsrf(sessionId: string, csrfSecretHash: string) {
+  public async touchSession(sessionId: string, idleExpiresAt: Date) {
     for (const [key, session] of this.sessions) {
-      if (session.sessionId === sessionId) this.sessions.set(key, { ...session, csrfSecretHash });
+      if (session.sessionId === sessionId) this.sessions.set(key, { ...session, idleExpiresAt });
     }
   }
-  public async touchSession() {}
   public async revokeSession(sessionId: string) {
     for (const [key, session] of this.sessions) {
       if (session.sessionId === sessionId) this.sessions.set(key, { ...session, revokedAt: now });
@@ -163,7 +161,7 @@ const start = async (
   repository: MemoryRepository,
   overrides: Pick<
     NonNullable<Parameters<typeof createApp>[0]>,
-    'aiRepository' | 'eventHub' | 'qrProvider' | 'whatsappSessionController'
+    'aiRepository' | 'eventHub' | 'now' | 'qrProvider' | 'whatsappSessionController'
   > = {}
 ) => {
   const server = createServer(
@@ -190,7 +188,7 @@ const cookieValue = (setCookie: string, name: string): string => {
 };
 
 describe('admin authentication security contract', () => {
-  it('requires login CSRF, returns an opaque secure cookie, and enforces logout CSRF', async () => {
+  it('keeps CSRF valid across admin tabs while enforcing logout CSRF', async () => {
     const repository = new MemoryRepository();
     const origin = await start(repository);
     const csrfResponse = await fetch(`${origin}/api/admin/v1/auth/csrf`);
@@ -241,6 +239,12 @@ describe('admin authentication security contract', () => {
     const me = await fetch(`${origin}/api/admin/v1/me`, { headers: { cookie: sessionCookie } });
     const meBody = (await me.json()) as { data: { csrfToken: string; tenant: { id: string } } };
     expect(meBody.data.tenant.id).toBe(repository.identity.tenantId);
+
+    const secondTab = await fetch(`${origin}/api/admin/v1/me`, {
+      headers: { cookie: sessionCookie }
+    });
+    const secondTabBody = (await secondTab.json()) as { data: { csrfToken: string } };
+    expect(secondTabBody.data.csrfToken).toBe(meBody.data.csrfToken);
 
     const noCsrfLogout = await fetch(`${origin}/api/admin/v1/auth/logout`, {
       method: 'POST',
@@ -300,6 +304,49 @@ describe('admin authentication security contract', () => {
     });
     expect(response.status).toBe(401);
     expect(response.headers.get('set-cookie')).toContain('Max-Age=0');
+  });
+
+  it('extends idle expiry for user activity without extending the absolute session limit', async () => {
+    const repository = new MemoryRepository();
+    let clock = now;
+    const origin = await start(repository, { now: () => clock });
+    const csrfResponse = await fetch(`${origin}/api/admin/v1/auth/csrf`);
+    const loginCsrfCookie = cookieValue(
+      csrfResponse.headers.getSetCookie().join(';'),
+      'raho_login_csrf'
+    );
+    const csrfBody = (await csrfResponse.json()) as { data: { csrfToken: string } };
+    const login = await fetch(`${origin}/api/admin/v1/auth/login`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: loginCsrfCookie,
+        'x-csrf-token': csrfBody.data.csrfToken
+      },
+      body: JSON.stringify({
+        tenantSlug: 'tenant-a',
+        username: 'admin',
+        password: 'correct horse battery staple'
+      })
+    });
+    const sessionHeader = login.headers
+      .getSetCookie()
+      .find((value) => value.startsWith('__Host-raho_session='));
+    const sessionCookie = cookieValue(sessionHeader!, '__Host-raho_session');
+
+    for (const minute of [10, 20, 29, 31]) {
+      clock = new Date(now.getTime() + minute * 60_000);
+      const response = await fetch(`${origin}/api/admin/v1/session`, {
+        headers: { cookie: sessionCookie, 'x-session-activity': '1' }
+      });
+      expect(response.status).toBe(200);
+    }
+
+    clock = new Date(now.getTime() + SESSION_ABSOLUTE_MS + 1);
+    const afterAbsoluteLimit = await fetch(`${origin}/api/admin/v1/session`, {
+      headers: { cookie: sessionCookie, 'x-session-activity': '1' }
+    });
+    expect(afterAbsoluteLimit.status).toBe(401);
   });
 
   it('revokes every existing session after a password change', async () => {
@@ -637,6 +684,7 @@ describe('admin authentication security contract', () => {
     });
     expect(qr.status).toBe(200);
     expect(qr.headers.get('content-type')).toBe('image/png');
+    expect(qr.headers.get('x-qr-expires-at')).toBe(new Date(now.getTime() + 60_000).toISOString());
     expect(qrTenantId).toBe(repository.identity.tenantId);
 
     const mutationHeaders = {

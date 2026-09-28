@@ -1,0 +1,403 @@
+{
+  "advisories": {
+    "1139427": {
+      "findings": [
+        {
+          "version": "3.3.17",
+          "paths": [
+            ".>vitest>@vitest/mocker>vite>postcss>nanoid",
+            ".>vitest>vite>postcss>nanoid",
+            "apps__web>next>postcss>nanoid"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1139427,
+      "title": "nanoid: custom generators can loop indefinitely when size is zero",
+      "module_name": "nanoid",
+      "vulnerable_versions": "<3.3.18",
+      "patched_versions": ">=3.3.18",
+      "severity": "high",
+      "cwe": "CWE-835",
+      "github_advisory_id": "GHSA-2v37-7h3g-55p8",
+      "url": "https://github.com/advisories/GHSA-2v37-7h3g-55p8"
+    },
+    "1145093": {
+      "findings": [
+        {
+          "version": "7.1.5",
+          "paths": [
+            "packages__db>@prisma/client>prisma>@prisma/config>deepmerge-ts",
+            "packages__db>prisma>@prisma/config>deepmerge-ts"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1145093,
+      "title": "DeepmergeTS has stack exhaustion when merging recursive object graphs",
+      "module_name": "deepmerge-ts",
+      "vulnerable_versions": "<8.0.0",
+      "patched_versions": ">=8.0.0",
+      "severity": "high",
+      "cwe": "CWE-674",
+      "github_advisory_id": "GHSA-ggr8-5vv4-36mx",
+      "url": "https://github.com/advisories/GHSA-ggr8-5vv4-36mx"
+    },
+    "1147955": {
+      "findings": [
+        {
+          "version": "0.2.2",
+          "paths": [
+            "packages__storage>minio>query-string>decode-uri-component"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1147955,
+      "title": "decode-uri-component: Denial of service via exponential decoding of malformed percent-encoded input",
+      "module_name": "decode-uri-component",
+      "vulnerable_versions": "<=0.4.2",
+      "patched_versions": ">=0.4.3",
+      "severity": "moderate",
+      "cwe": "CWE-400, CWE-405, CWE-407, CWE-1176",
+      "github_advisory_id": "GHSA-vcc3-ghjq-m6fr",
+      "url": "https://github.com/advisories/GHSA-vcc3-ghjq-m6fr"
+    },
+    "1153173": {
+      "findings": [
+        {
+          "version": "3.15.3",
+          "paths": [
+            "packages__db>@prisma/client>prisma>mysql2",
+            "packages__db>prisma>mysql2"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1153173,
+      "title": "MySQL2: Auth Plugin Downgrade to mysql_clear_password Leaks Plaintext Credentials",
+      "module_name": "mysql2",
+      "vulnerable_versions": "<3.22.0",
+      "patched_versions": ">=3.22.0",
+      "severity": "high",
+      "cwe": "CWE-522",
+      "github_advisory_id": "GHSA-3f6p-5ww8-9rcr",
+      "url": "https://github.com/advisories/GHSA-3f6p-5ww8-9rcr"
+    },
+    "1158506": {
+      "findings": [
+        {
+          "version": "6.15.3",
+          "paths": [
+            "apps__api>express>body-parser>qs",
+            "apps__api>express>qs"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1158506,
+      "title": "qs array-limit bypass via bracket-key comma parsing",
+      "module_name": "qs",
+      "vulnerable_versions": ">=6.14.2 <=6.15.3",
+      "patched_versions": ">=6.15.4",
+      "severity": "moderate",
+      "cwe": "CWE-770",
+      "github_advisory_id": "GHSA-x5fp-wj9c-mxmx",
+      "url": "https://github.com/advisories/GHSA-x5fp-wj9c-mxmx"
+    },
+    "1158507": {
+      "findings": [
+        {
+          "version": "6.15.3",
+          "paths": [
+            "apps__api>express>body-parser>qs",
+            "apps__api>express>qs"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1158507,
+      "title": "qs: Denial of Service via Attacker Controlled isBuffer",
+      "module_name": "qs",
+      "vulnerable_versions": ">=2.2.5 <6.16.0",
+      "patched_versions": ">=6.16.0",
+      "severity": "moderate",
+      "cwe": "CWE-248, CWE-703",
+      "github_advisory_id": "GHSA-4mjr-xmp4-gh2g",
+      "url": "https://github.com/advisories/GHSA-4mjr-xmp4-gh2g"
+    },
+    "1158521": {
+      "findings": [
+        {
+          "version": "3.1.5",
+          "paths": [
+            "packages__db>@prisma/client>prisma>@prisma/dev>@prisma/streams-local>ajv>fast-uri",
+            "packages__db>prisma>@prisma/dev>@prisma/streams-local>ajv>fast-uri"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1158521,
+      "title": "fast-uri vulnerable to host confusion via skipped IDN canonicalization on scheme-relative references",
+      "module_name": "fast-uri",
+      "vulnerable_versions": ">=3.1.3 <3.1.6",
+      "patched_versions": ">=3.1.6",
+      "severity": "high",
+      "cwe": "CWE-436",
+      "github_advisory_id": "GHSA-5jgf-p345-68v8",
+      "url": "https://github.com/advisories/GHSA-5jgf-p345-68v8"
+    },
+    "1158524": {
+      "findings": [
+        {
+          "version": "3.1.5",
+          "paths": [
+            "packages__db>@prisma/client>prisma>@prisma/dev>@prisma/streams-local>ajv>fast-uri",
+            "packages__db>prisma>@prisma/dev>@prisma/streams-local>ajv>fast-uri"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1158524,
+      "title": "fast-uri vulnerable to server-side request forgery via malformed IPv6 normalization",
+      "module_name": "fast-uri",
+      "vulnerable_versions": ">=3.0.0 <3.1.6",
+      "patched_versions": ">=3.1.6",
+      "severity": "high",
+      "cwe": "CWE-20, CWE-918",
+      "github_advisory_id": "GHSA-f65p-4m7j-42xc",
+      "url": "https://github.com/advisories/GHSA-f65p-4m7j-42xc"
+    },
+    "1158527": {
+      "findings": [
+        {
+          "version": "3.1.5",
+          "paths": [
+            "packages__db>@prisma/client>prisma>@prisma/dev>@prisma/streams-local>ajv>fast-uri",
+            "packages__db>prisma>@prisma/dev>@prisma/streams-local>ajv>fast-uri"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1158527,
+      "title": "fast-uri vulnerable to server-side request forgery via repeated hostname percent-decoding",
+      "module_name": "fast-uri",
+      "vulnerable_versions": ">=3.1.2 <3.1.6",
+      "patched_versions": ">=3.1.6",
+      "severity": "high",
+      "cwe": "CWE-174, CWE-918",
+      "github_advisory_id": "GHSA-fph4-wmhf-6fwf",
+      "url": "https://github.com/advisories/GHSA-fph4-wmhf-6fwf"
+    },
+    "1158530": {
+      "findings": [
+        {
+          "version": "3.1.5",
+          "paths": [
+            "packages__db>@prisma/client>prisma>@prisma/dev>@prisma/streams-local>ajv>fast-uri",
+            "packages__db>prisma>@prisma/dev>@prisma/streams-local>ajv>fast-uri"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1158530,
+      "title": "fast-uri vulnerable to host confusion via percent-encoded scheme normalization",
+      "module_name": "fast-uri",
+      "vulnerable_versions": ">=3.0.0 <3.1.6",
+      "patched_versions": ">=3.1.6",
+      "severity": "high",
+      "cwe": "CWE-177",
+      "github_advisory_id": "GHSA-jqff-g426-hqxp",
+      "url": "https://github.com/advisories/GHSA-jqff-g426-hqxp"
+    },
+    "1158532": {
+      "findings": [
+        {
+          "version": "3.15.3",
+          "paths": [
+            "packages__db>@prisma/client>prisma>mysql2",
+            "packages__db>prisma>mysql2"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1158532,
+      "title": "MySQL2: Unbounded zlib inflate in compressed MySQL protocol handler allows decompression-bomb DoS",
+      "module_name": "mysql2",
+      "vulnerable_versions": "<=3.23.0",
+      "patched_versions": ">=3.23.1",
+      "severity": "moderate",
+      "cwe": "CWE-409",
+      "github_advisory_id": "GHSA-rgwj-5xj2-c3m3",
+      "url": "https://github.com/advisories/GHSA-rgwj-5xj2-c3m3"
+    },
+    "1164823": {
+      "findings": [
+        {
+          "version": "1.9.1",
+          "paths": [
+            "packages__storage>minio>stream-json"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1164823,
+      "title": "stream-json: pick/ignore/filter/replace filters are O(depth²) on nested input — small crafted JSON blocks the event loop for seconds→minutes (DoS)",
+      "module_name": "stream-json",
+      "vulnerable_versions": "<=3.4.0",
+      "patched_versions": ">=3.4.1",
+      "severity": "moderate",
+      "cwe": "CWE-407",
+      "github_advisory_id": "GHSA-528h-pc64-c93x",
+      "url": "https://github.com/advisories/GHSA-528h-pc64-c93x"
+    },
+    "1193676": {
+      "findings": [
+        {
+          "version": "16.3.0",
+          "paths": [
+            "apps__web>next"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1193676,
+      "title": "Next.js: Unauthenticated Remote Code Execution on windows-hosted servers",
+      "module_name": "next",
+      "vulnerable_versions": ">=16.0.0 <16.3.3",
+      "patched_versions": ">=16.3.3",
+      "severity": "critical",
+      "cwe": "CWE-22",
+      "github_advisory_id": "GHSA-p293-qw3h-jr36",
+      "url": "https://github.com/advisories/GHSA-p293-qw3h-jr36"
+    },
+    "1193683": {
+      "findings": [
+        {
+          "version": "4.1.10",
+          "paths": [
+            ".>vitest"
+          ],
+          "dev": true,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1193683,
+      "title": "Vitest: Path Traversal / Arbitrary File Read via @vitest/mocker Redirect Mock",
+      "module_name": "vitest",
+      "vulnerable_versions": ">=2.1.0 <4.1.11",
+      "patched_versions": ">=4.1.11",
+      "severity": "moderate",
+      "cwe": "CWE-22",
+      "github_advisory_id": "GHSA-82fw-gwwq-j7x9",
+      "url": "https://github.com/advisories/GHSA-82fw-gwwq-j7x9"
+    },
+    "1193684": {
+      "findings": [
+        {
+          "version": "4.1.10",
+          "paths": [
+            ".>vitest>@vitest/mocker"
+          ],
+          "dev": true,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1193684,
+      "title": "Vitest: Path Traversal / Arbitrary File Read via @vitest/mocker Redirect Mock",
+      "module_name": "@vitest/mocker",
+      "vulnerable_versions": ">=2.1.0 <4.1.11",
+      "patched_versions": ">=4.1.11",
+      "severity": "moderate",
+      "cwe": "CWE-22",
+      "github_advisory_id": "GHSA-82fw-gwwq-j7x9",
+      "url": "https://github.com/advisories/GHSA-82fw-gwwq-j7x9"
+    },
+    "1193725": {
+      "findings": [
+        {
+          "version": "0.35.3",
+          "paths": [
+            "apps__web>next>sharp",
+            "apps__whatsapp>baileys>sharp"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1193725,
+      "title": "sharp: Vulnerabilities in libheif: GHSA-g89c-p67h-r497 and GHSA-2jg2-4ch7-h545",
+      "module_name": "sharp",
+      "vulnerable_versions": "<0.35.4",
+      "patched_versions": ">=0.35.4",
+      "severity": "high",
+      "cwe": "CWE-122",
+      "github_advisory_id": "GHSA-rgj7-g3m4-5g8c",
+      "url": "https://github.com/advisories/GHSA-rgj7-g3m4-5g8c"
+    },
+    "1193732": {
+      "findings": [
+        {
+          "version": "16.3.0",
+          "paths": [
+            "apps__web>next"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1193732,
+      "title": "Next.js: Unauthenticated Remote Code Execution in Image Optimization API when AVIF files are used",
+      "module_name": "next",
+      "vulnerable_versions": ">=16.0.0 <16.3.3",
+      "patched_versions": ">=16.3.3",
+      "severity": "critical",
+      "cwe": "CWE-1395",
+      "github_advisory_id": "GHSA-2xp9-vwfh-vxw4",
+      "url": "https://github.com/advisories/GHSA-2xp9-vwfh-vxw4"
+    }
+  },
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 7,
+      "high": 8,
+      "critical": 2
+    },
+    "dependencies": 368,
+    "devDependencies": 177,
+    "optionalDependencies": 98,
+    "totalDependencies": 590
+  }
+}

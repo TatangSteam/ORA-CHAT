@@ -13,6 +13,7 @@
     "@raho/contracts": "workspace:*",
     "@raho/db": "workspace:*",
     "@raho/queue": "workspace:*",
-    "@raho/storage": "workspace:*"
+    "@raho/storage": "workspace:*",
+    "pdfjs-dist": "6.3.289"
   }
 }

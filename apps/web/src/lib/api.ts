@@ -3,6 +3,8 @@
 import type { ErrorEnvelope, RequestMeta } from '@raho/contracts';
 
 let csrfToken: string | null = null;
+let lastUserActivityAt = Number.NEGATIVE_INFINITY;
+const USER_ACTIVITY_WINDOW_MS = 30_000;
 
 export interface ApiEnvelope<T> {
   data: T;
@@ -23,10 +25,18 @@ export const setCsrfToken = (token: string | null): void => {
   csrfToken = token;
 };
 
+export const markUserActivity = (): void => {
+  lastUserActivityAt = Date.now();
+};
+
+const hasRecentUserActivity = (): boolean =>
+  Date.now() - lastUserActivityAt <= USER_ACTIVITY_WINDOW_MS;
+
 export const api = async <T>(path: string, init: RequestInit = {}): Promise<ApiEnvelope<T>> => {
   const method = init.method?.toUpperCase() ?? 'GET';
   const headers = new Headers(init.headers);
   if (init.body) headers.set('content-type', 'application/json');
+  if (hasRecentUserActivity()) headers.set('x-session-activity', '1');
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && csrfToken) {
     headers.set('x-csrf-token', csrfToken);
   }
@@ -49,6 +59,7 @@ export const uploadDocument = async <T>(file: File): Promise<ApiEnvelope<T>> => 
     'content-type': file.type,
     'x-file-name': file.name
   });
+  if (hasRecentUserActivity()) headers.set('x-session-activity', '1');
   if (csrfToken) headers.set('x-csrf-token', csrfToken);
   const response = await fetch('/api/admin/v1/ai/documents', {
     method: 'POST',
