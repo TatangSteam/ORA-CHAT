@@ -13,6 +13,7 @@
   },
   "scripts": {
     "bootstrap": "tsx src/bootstrap.ts",
+    "seed:knowledge": "tsx src/knowledge-seed.ts",
     "build": "prisma generate && tsc -p tsconfig.build.json",
     "migrate:deploy": "prisma migrate deploy",
     "prisma:generate": "prisma generate",

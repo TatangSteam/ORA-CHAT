@@ -47,7 +47,13 @@ docker compose --env-file .env.example up -d --wait --wait-timeout 120
 
 corepack pnpm db:migrate
 corepack pnpm db:bootstrap
+corepack pnpm db:seed:knowledge
 ```
+
+`db:seed:knowledge` mengisi tenant `default` secara idempotent dengan knowledge RAHO yang
+dikurasi: 9 kategori, 78 item, 80 versi, dan 131 variasi pertanyaan. Perintah aman dijalankan
+ulang karena menggunakan upsert. Seed tidak membawa kontak, percakapan, kredensial, dokumen
+binary, maupun embedding; dokumen perlu diunggah dan diindeks ulang melalui dashboard VPS.
 
 Layanan lokal:
 
