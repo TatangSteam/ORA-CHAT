@@ -48,6 +48,7 @@ yarn-error.log*
 .envrc
 .direnv/
 .secrets/
+.secrets.zip
 secrets/
 credentials.json
 credentials.*.json
