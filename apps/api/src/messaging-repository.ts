@@ -71,6 +71,12 @@ export interface AutomatedInboundResponseResult {
   notificationOutboxMessageId: string | null;
 }
 
+export const whatsappSafeText = (value: string): string =>
+  value
+    .replace(/^#{1,6}\s+/gmu, '')
+    .replace(/\*\*([^*\n]+)\*\*/gu, '*$1*')
+    .trim();
+
 const handoffReasonLabel = (reasonCode: string): string => {
   if (reasonCode === 'restricted_or_emergency') return 'Perlu bantuan manusia segera';
   if (reasonCode === 'insufficient_medical_grounding' || reasonCode === 'medical_review_required') {
@@ -789,7 +795,7 @@ export class PrismaMessagingRepository {
           replyToMessageId: input.triggerMessageId,
           direction: 'outgoing',
           source: 'ai',
-          content: input.content.slice(0, 4096),
+          content: whatsappSafeText(input.content).slice(0, 4096),
           status: 'queued',
           occurredAt: input.now,
           events: {

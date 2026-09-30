@@ -119,12 +119,14 @@ const LEXICAL_STOP_WORDS = new Set([
   'itu',
   'kapan',
   'kalau',
+  'kak',
   'ke',
   'kok',
   'mana',
   'mau',
   'mengenai',
   'mohon',
+  'min',
   'nih',
   'nya',
   'pada',
@@ -145,8 +147,11 @@ const LEXICAL_STOP_WORDS = new Set([
 ]);
 
 const LEXICAL_ALIASES: Readonly<Record<string, string>> = {
+  brp: 'berapa',
   dmn: 'lokasi',
+  dimn: 'lokasi',
   dimana: 'lokasi',
+  hrg: 'harga',
   therapy: 'terapi',
   treatment: 'terapi',
   wa: 'whatsapp'
@@ -317,9 +322,38 @@ const UNSUPPORTED_SOFTWARE_TASK_PATTERN = new RegExp(
 );
 
 export const unsupportedGeneralAssistantResponse = (value: string): string | null =>
-  UNSUPPORTED_SOFTWARE_TASK_PATTERN.test(normalizeGreeting(value))
-    ? 'Maaf, saya khusus membantu informasi dan layanan RAHO Premier. Saya tidak dapat membuat kode, website, atau tugas umum lainnya.'
-    : null;
+  (() => {
+    const normalized = normalizeGreeting(value);
+    if (UNSUPPORTED_SOFTWARE_TASK_PATTERN.test(normalized)) {
+      return 'Maaf, saya khusus membantu informasi dan layanan RAHO Premier. Saya tidak dapat membuat kode, website, atau tugas umum lainnya.';
+    }
+    if (
+      /\b(?:siapa|nama) (?:presiden|wakil presiden|gubernur|menteri)\b|\b(?:berita politik|cuaca|resep masakan|sepak bola|zodiak)\b/u.test(
+        normalized
+      )
+    ) {
+      return 'Maaf, saya khusus membantu informasi dan layanan RAHO Premier. Silakan tanyakan layanan, lokasi, harga, jadwal, atau informasi terapi RAHO.';
+    }
+    return null;
+  })();
+
+export const highValueFaqQuestion = (value: string): string | null => {
+  const normalized = normalizeGreeting(value);
+  const tokens = lexicalQueryTokens(value);
+  const tokenSet = new Set(tokens);
+  const asksPrice = ['harga', 'biaya', 'tarif'].some((token) => tokenSet.has(token));
+  if (asksPrice && !/\b(?:membership|homecare)\b/u.test(normalized)) {
+    return 'Berapa harga terapi?';
+  }
+  const asksForAllLocations =
+    /\braho\b.*\b(?:di ?mana|kota mana|lokasi)\b.*\b(?:aja|saja|semua)\b/u.test(normalized) ||
+    /\b(?:daftar|semua)\b.*\b(?:cabang|lokasi)\b/u.test(normalized) ||
+    /\b(?:cabang|lokasi)\b.*\b(?:apa saja|di ?mana saja)\b/u.test(normalized);
+  if (asksForAllLocations && !/\b(?:terdekat|paling dekat)\b/u.test(normalized)) {
+    return 'Di mana saja cabang RAHO Club Premier?';
+  }
+  return null;
+};
 
 const CUSTOMER_INTEREST_PATTERN =
   /\b(?:tertarik|berminat)\b|\b(?:mau|ingin|hendak) (?:daftar|mendaftar|booking|reservasi|memesan|pesan|jadwalkan|lanjut|ambil paket|ikut program)\b|\b(?:bagaimana|gimana|cara) (?:daftar|mendaftar|booking|reservasi|memesan|melanjutkan)\b/u;
@@ -1272,6 +1306,28 @@ export class PrismaKnowledgeRepository {
           itemVersionId: exactFaq.versionId
         },
         sources: exactFaq.sources
+      });
+    }
+    const highValueFaq = highValueFaqQuestion(question);
+    const deterministicFaq = highValueFaq
+      ? await this.exactPublishedFaqAnswer(tenantId, highValueFaq)
+      : null;
+    if (deterministicFaq) {
+      return this.persistTrace({
+        tenantId,
+        question,
+        requestId,
+        status: 'answered',
+        shouldHandoff: false,
+        answer: deterministicFaq.answer,
+        fallbackReason: null,
+        latencyMs: Math.round(performance.now() - started),
+        safeMetadata: {
+          responseMode: 'deterministic_high_value_faq',
+          intent: highValueFaq,
+          itemVersionId: deterministicFaq.versionId
+        },
+        sources: deterministicFaq.sources
       });
     }
     const homecareFaq = lexicalQueryTokens(question).includes('homecare')

@@ -2471,6 +2471,147 @@
       "categoryId": "019feec7-989a-79ab-b8e9-5c47ea23b45f",
       "currentVersionId": "019ff9bb-5f8e-71f0-be80-63a85b2ac3cb",
       "publishedVersionId": "019ff9bb-5f8e-71f0-be80-63a85b2ac3cb"
+    },
+    {
+      "id": "01a0f00d-39bd-7979-baa2-add6ca3ff24b",
+      "title": "Gasotransmitter dan kesehatan tulang: ringkasan bukti ilmiah",
+      "status": "published",
+      "revision": 3,
+      "versions": [
+        {
+          "id": "01a0f00d-39bd-70a9-b5b5-a52de54887e3",
+          "answer": "Gasotransmitter adalah molekul gas endogen yang berfungsi sebagai sinyal biologis. Dalam jaringan tulang, literatur menunjukkan bahwa:\n\n- H₂S berkaitan dengan osteoblastogenesis dan pembentukan tulang melalui jalur Wnt serta persulfidasi RUNX2. Temuan donor H₂S yang mendukung pembentukan/perbaikan tulang terutama berasal dari kultur sel dan model hewan.\n- NO berperan pada homeostasis tulang melalui jalur sGC–cGMP–PKG, termasuk proliferasi, diferensiasi, dan survival osteoblas serta regulasi osteoklas. Pada model fraktur tikus, penghambatan nitric oxide synthase mengganggu penyembuhan dan donor NO lokal memperbaiki sebagian parameter healing.\n- CO yang dipelajari melalui donor seperti CORM-3 menunjukkan potensi mendukung osteogenesis, mengendalikan stres oksidatif melalui Nrf2/HO-1, dan menekan osteoklastogenesis pada studi sel dan hewan.\n\nKesimpulan: NO, H₂S, dan CO memiliki dasar biologis dalam pembentukan, remodeling, vaskularisasi, dan perbaikan tulang. Namun bukti tersebut belum membuktikan bahwa pemberian gas atau nanobubble secara intravena efektif maupun aman untuk menyembuhkan fraktur atau osteoporosis pada manusia. Informasi ini bersifat edukasi riset, bukan diagnosis atau rekomendasi terapi; keputusan klinis harus dibahas dengan dokter.\n\nReferensi utama: Xu et al. 2023, DOI 10.59717/j.xinn-life.2023.100015; Gambari et al. 2019, DOI 10.3390/ijms20205231; Grassi et al. 2016, DOI 10.1002/jbmr.2757; Zheng et al. 2017, DOI 10.1089/ars.2016.6826; Kalyanaraman et al. 2018, DOI 10.1016/j.niox.2018.03.007; Diwan et al. 2000, DOI 10.1359/jbmr.2000.15.2.342; Pan et al. 2018, DOI 10.1159/000494891; PMID 36035220.",
+          "status": "published",
+          "version": 1,
+          "approvedAt": "2026-09-30T02:03:21.000Z",
+          "archivedAt": null,
+          "contentHash": "69d10d5c520c1e2fbc27e64ab0088038b7db2ec89c00fcffd82e3f99bab9847f",
+          "publishedAt": "2026-09-30T02:03:21.000Z",
+          "questionVariants": [
+            {
+              "id": "01a0f00d-39bd-7590-9005-8662410728df",
+              "question": "Apa itu gasotransmitter dan hubungannya dengan tulang?",
+              "normalizedQuestion": "apa itu gasotransmitter dan hubungannya dengan tulang?"
+            },
+            {
+              "id": "01a0f00d-39bd-7d86-bb75-86734ba39405",
+              "question": "Apa peran H2S dalam pembentukan tulang?",
+              "normalizedQuestion": "apa peran h2s dalam pembentukan tulang?"
+            },
+            {
+              "id": "01a0f00d-39bd-7258-b6da-3edca019c52d",
+              "question": "Bagaimana H2S memengaruhi RUNX2 dan osteoblas?",
+              "normalizedQuestion": "bagaimana h2s memengaruhi runx2 dan osteoblas?"
+            },
+            {
+              "id": "01a0f00d-39bd-7418-a141-aee66fafa3a6",
+              "question": "Apa peran nitric oxide atau NO pada tulang?",
+              "normalizedQuestion": "apa peran nitric oxide atau no pada tulang?"
+            },
+            {
+              "id": "01a0f00d-39bd-7796-9077-ee2ec3089cb9",
+              "question": "Apakah NO membantu penyembuhan patah tulang?",
+              "normalizedQuestion": "apakah no membantu penyembuhan patah tulang?"
+            },
+            {
+              "id": "01a0f00d-39bd-7334-bacd-c144ea3f2c14",
+              "question": "Apa peran karbon monoksida atau CO pada remodeling tulang?",
+              "normalizedQuestion": "apa peran karbon monoksida atau co pada remodeling tulang?"
+            },
+            {
+              "id": "01a0f00d-39bd-706c-b31b-13d63e9cd93e",
+              "question": "Apakah gasotransmitter terbukti menyembuhkan fraktur?",
+              "normalizedQuestion": "apakah gasotransmitter terbukti menyembuhkan fraktur?"
+            },
+            {
+              "id": "01a0f00d-39bd-74fc-89c5-80396d068108",
+              "question": "Apakah infus gas atau nanobubble terbukti efektif untuk tulang?",
+              "normalizedQuestion": "apakah infus gas atau nanobubble terbukti efektif untuk tulang?"
+            },
+            {
+              "id": "01a0f00d-39bd-71b7-bcdd-ffd846b8830c",
+              "question": "Apa bukti ilmiah gasotransmitter untuk regenerasi tulang?",
+              "normalizedQuestion": "apa bukti ilmiah gasotransmitter untuk regenerasi tulang?"
+            },
+            {
+              "id": "01a0f00d-39bd-7e9b-a4ed-7d94bf5d98f8",
+              "question": "Apakah gasotransmitter aman digunakan sebagai terapi tulang?",
+              "normalizedQuestion": "apakah gasotransmitter aman digunakan sebagai terapi tulang?"
+            }
+          ]
+        }
+      ],
+      "categoryId": "019feec7-988a-7b7c-9bda-b6fab42fe469",
+      "currentVersionId": "01a0f00d-39bd-70a9-b5b5-a52de54887e3",
+      "publishedVersionId": "01a0f00d-39bd-70a9-b5b5-a52de54887e3"
+    },
+    {
+      "id": "40d6c821-59dc-4b4a-b32f-7c8816eead51",
+      "title": "Mekanisme pelepasan gas dari nanobubble dan hipotesis IGDS",
+      "status": "published",
+      "revision": 3,
+      "versions": [
+        {
+          "id": "2fe45871-e168-44d1-84d4-0eb2e042ed6e",
+          "answer": "Pelepasan dan kestabilan gas dari nanobubble ditentukan bersama oleh ukuran bubble, tegangan antarmuka, tekanan, kelarutan gas, konsentrasi gas terlarut, suhu, serta komposisi antarmuka dan cairan.\n\nUntuk bubble bulat ideal dengan antarmuka sederhana, hukum Young–Laplace menyatakan ΔP = 2γ/R, dengan ΔP sebagai selisih tekanan di dalam dan di luar bubble, γ sebagai tegangan antarmuka, dan R sebagai radius. Semakin kecil radius, semakin besar tekanan Laplace. Bersama hukum Henry, tekanan ini meningkatkan konsentrasi kesetimbangan gas pada permukaan; jika konsentrasi gas di cairan sekitarnya lebih rendah, terbentuk gradien yang mendorong difusi gas keluar.\n\nKarena itu, tekanan internal tinggi tidak dengan sendirinya menghasilkan pelepasan perlahan atau terkendali. Tanpa stabilisasi, teori klasik justru memprediksi bubble kecil cepat melarut. Umur dan laju pelepasan nanobubble dapat dipengaruhi oleh muatan atau lapisan antarmuka, tegangan permukaan, surfaktan, pH, kekuatan ionik, kejenuhan gas, dan—khusus surface nanobubble—pinning pada permukaan. Mekanismenya bergantung pada sistem dan belum dijelaskan oleh satu model universal.\n\nHipotesis IGDS dapat dirumuskan sebagai berikut: tekanan internal menyediakan gaya pendorong pelepasan gas, sedangkan antarmuka dan lingkungan cairan mengatur lajunya. Konsumsi gas terlarut oleh jaringan secara teoritis dapat mempertahankan gradien konsentrasi dan mendorong difusi lanjutan. Namun ini masih inferensi mekanistik; belum membuktikan bahwa nanobubble secara otomatis memberi dosis sesuai kebutuhan biologis atau menghasilkan manfaat klinis.\n\nBukti eksperimental yang dibutuhkan adalah kurva pelepasan gas terhadap waktu dalam media yang menyerupai darah, dengan karakterisasi jenis gas, distribusi ukuran, konsentrasi, suhu, pH, garam, protein, aliran, gas terlarut versus gas di dalam bubble, dan neraca massa. Data tersebut diperlukan untuk menilai apakah paparannya benar-benar stabil, terukur, dan terkendali.\n\nReferensi: Alheshibri et al., Soft Matter 2018, DOI 10.1039/C8SM01949E; Lu et al., Physical Chemistry Chemical Physics 2021, DOI 10.1039/D1CP03325E; Zhang et al., Physical Chemistry Chemical Physics 2022, DOI 10.1039/D2CP00283C.",
+          "status": "published",
+          "version": 1,
+          "approvedAt": "2026-09-30T02:13:01.000Z",
+          "archivedAt": null,
+          "contentHash": "765619f1ebd02e1a501b81d2dd6ba694a44b2b91c6d0c696bb9e5c403212e0e9",
+          "publishedAt": "2026-09-30T02:13:01.000Z",
+          "questionVariants": [
+            {
+              "id": "09b1a5cf-db96-4a36-81dd-a21af1bc63a3",
+              "question": "Bagaimana gas dilepaskan dari nanobubble?",
+              "normalizedQuestion": "bagaimana gas dilepaskan dari nanobubble?"
+            },
+            {
+              "id": "e7b3860d-381b-40d2-9384-dd78b8f362a0",
+              "question": "Apa hubungan hukum Young-Laplace dengan nanobubble?",
+              "normalizedQuestion": "apa hubungan hukum young-laplace dengan nanobubble?"
+            },
+            {
+              "id": "c79811ab-6098-49c6-bc48-b1aaaa286707",
+              "question": "Mengapa nanobubble kecil memiliki tekanan internal tinggi?",
+              "normalizedQuestion": "mengapa nanobubble kecil memiliki tekanan internal tinggi?"
+            },
+            {
+              "id": "27d0b22f-2112-4c9c-a1b1-2124eb9a07df",
+              "question": "Apakah tekanan tinggi membuat nanobubble melepas gas perlahan?",
+              "normalizedQuestion": "apakah tekanan tinggi membuat nanobubble melepas gas perlahan?"
+            },
+            {
+              "id": "7ea547f5-233c-4eb3-91a6-17d67052254e",
+              "question": "Apa yang menentukan kestabilan nanobubble?",
+              "normalizedQuestion": "apa yang menentukan kestabilan nanobubble?"
+            },
+            {
+              "id": "c05f9edc-3af2-43bc-94c6-c050e4bfa1a9",
+              "question": "Apa hipotesis IGDS tentang pelepasan gas?",
+              "normalizedQuestion": "apa hipotesis igds tentang pelepasan gas?"
+            },
+            {
+              "id": "0b5f028d-17fe-46c4-86f6-c0bfafe85713",
+              "question": "Apakah nanobubble melepaskan gas sesuai kebutuhan jaringan?",
+              "normalizedQuestion": "apakah nanobubble melepaskan gas sesuai kebutuhan jaringan?"
+            },
+            {
+              "id": "153540e0-d1ca-43d2-bf04-932f326f30d8",
+              "question": "Bukti apa yang dibutuhkan untuk membuktikan pelepasan gas terkendali?",
+              "normalizedQuestion": "bukti apa yang dibutuhkan untuk membuktikan pelepasan gas terkendali?"
+            },
+            {
+              "id": "f327e44f-1b7f-4160-b4b0-812047a739ce",
+              "question": "Bagaimana menguji pelepasan gas nanobubble dalam kondisi seperti darah?",
+              "normalizedQuestion": "bagaimana menguji pelepasan gas nanobubble dalam kondisi seperti darah?"
+            }
+          ]
+        }
+      ],
+      "categoryId": "019feec7-988a-7b7c-9bda-b6fab42fe469",
+      "currentVersionId": "2fe45871-e168-44d1-84d4-0eb2e042ed6e",
+      "publishedVersionId": "2fe45871-e168-44d1-84d4-0eb2e042ed6e"
     }
   ],
   "categories": [

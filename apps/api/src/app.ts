@@ -385,11 +385,33 @@ export const createApp = (options: AppOptions = {}): Express => {
   };
 
   const overview = async (tenantId: string) => {
-    const [dependencies, safety, metrics] = await Promise.all([
+    const [baseDependencies, safety, metrics, aiIntegration] = await Promise.all([
       dependencyStatuses(repository, options.storageProbe),
       repository.getSafetyState(tenantId),
-      messagingRepository?.metrics(tenantId)
+      messagingRepository?.metrics(tenantId),
+      aiRepository?.getIntegration(tenantId).catch(() => null)
     ]);
+    const dependencies = baseDependencies.map((dependency) => {
+      if (dependency.name === 'chat_provider') {
+        return {
+          ...dependency,
+          status:
+            aiIntegration?.generationEnabled && aiIntegration.activeChatConnectionId
+              ? ('healthy' as const)
+              : ('not_configured' as const)
+        };
+      }
+      if (dependency.name === 'embedding_provider') {
+        return {
+          ...dependency,
+          status:
+            aiIntegration?.retrievalEnabled && aiIntegration.activeEmbeddingConnectionId
+              ? ('healthy' as const)
+              : ('not_configured' as const)
+        };
+      }
+      return dependency;
+    });
     return {
       dependencies,
       sendingPaused: safety.sendingPaused,

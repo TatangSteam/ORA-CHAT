@@ -6,6 +6,7 @@ import {
   CUSTOMER_INTEREST_HANDOFF_RESPONSE,
   customerInterestHandoffResponse,
   expandedLexicalQueryTokens,
+  highValueFaqQuestion,
   lexicalQueryTokens,
   PrismaKnowledgeRepository,
   requiresMedicalEvidenceFallback,
@@ -65,6 +66,10 @@ describe('lexical RAG query normalization', () => {
       'alamat',
       'lokasi'
     ]);
+  });
+
+  it('normalizes common WhatsApp abbreviations for price questions', () => {
+    expect(lexicalQueryTokens('min brp hrg therapi raho?')).toEqual(['harga', 'terapi', 'raho']);
   });
 
   it('normalizes the common spaced spelling of gasotransmitter', () => {
@@ -196,6 +201,15 @@ describe('deterministic scope guard', () => {
     expect(unsupportedGeneralAssistantResponse(question)).toBe(answer);
   });
 
+  it.each(['Siapa presiden Indonesia sekarang?', 'Bagaimana cuaca hari ini?'])(
+    'blocks an obvious unrelated knowledge question: %s',
+    (question) => {
+      expect(unsupportedGeneralAssistantResponse(question)).toContain(
+        'khusus membantu informasi dan layanan RAHO Premier'
+      );
+    }
+  );
+
   it.each([
     'Apakah RAHO memiliki website?',
     'Bagaimana cara booking terapi?',
@@ -203,6 +217,77 @@ describe('deterministic scope guard', () => {
     'Apa itu Nano Bubble?'
   ])('allows a RAHO information question: %s', (question) => {
     expect(unsupportedGeneralAssistantResponse(question)).toBeNull();
+  });
+});
+
+describe('deterministic high-value FAQ routing', () => {
+  it.each([
+    ['min brp hrg therapi raho?', 'Berapa harga terapi?'],
+    ['harganya berapa kak?', 'Berapa harga terapi?'],
+    ['RAHO ada dimana aja?', 'Di mana saja cabang RAHO Club Premier?'],
+    ['Tampilkan semua lokasi cabang', 'Di mana saja cabang RAHO Club Premier?']
+  ])('routes repeated operational questions without model generation: %s', (question, faq) => {
+    expect(highValueFaqQuestion(question)).toBe(faq);
+    expect(highValueFaqQuestion(question)).toBe(faq);
+  });
+
+  it.each(['Berapa biaya membership?', 'Berapa harga homecare?', 'RAHO terdekat dari Bandung'])(
+    'does not overmatch a more specific question: %s',
+    (question) => {
+      expect(highValueFaqQuestion(question)).toBeNull();
+    }
+  );
+
+  it('answers a casual price question from the exact published FAQ without generation', async () => {
+    const tenantId = '019ff9bb-0000-7000-8000-000000000051';
+    const answer = 'Paket 7 Sesi Rp12.500.000 dan Paket 15 Sesi Rp22.500.000.';
+    const findMany = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          itemVersion: {
+            id: '019ff9bb-0000-7000-8000-000000000052',
+            answer,
+            lexicalChunks: [
+              {
+                id: '019ff9bb-0000-7000-8000-000000000053',
+                content: answer
+              }
+            ]
+          }
+        }
+      ]);
+    const createTrace = vi.fn(
+      async ({ data }: { data: { id: string; sources: { create: unknown[] } } }) => ({
+        id: data.id,
+        sources: data.sources.create
+      })
+    );
+    const repository = new PrismaKnowledgeRepository(
+      {
+        knowledgeQuestionVariant: { findMany },
+        $transaction: vi.fn(async (operation: (client: unknown) => Promise<unknown>) =>
+          operation({ aiMessageTrace: { create: createTrace } })
+        )
+      } as never,
+      Buffer.alloc(32),
+      {} as never
+    );
+
+    const result = await repository.answer(
+      tenantId,
+      'min brp hrg therapi raho?',
+      '019ff9bb-0000-7000-8000-000000000054'
+    );
+
+    expect(result).toMatchObject({
+      status: 'answered',
+      shouldHandoff: false,
+      answer,
+      fallbackReason: null
+    });
+    expect(result.sources).toHaveLength(1);
   });
 });
 

@@ -575,8 +575,8 @@ if (duplicates.length)
   throw new Error(`Judul rencana duplikat: ${duplicates.map((value) => value.title).join(', ')}`);
 
 if (dryRun) {
-  console.log(
-    JSON.stringify(
+  process.stdout.write(
+    `${JSON.stringify(
       {
         dryRun: true,
         sourceQuestions: source.size,
@@ -586,7 +586,7 @@ if (dryRun) {
       },
       null,
       2
-    )
+    )}\n`
   );
   process.exit(0);
 }
@@ -675,8 +675,8 @@ for (const plan of plans) {
   createdByCategory.set(plan.category, (createdByCategory.get(plan.category) ?? 0) + 1);
 }
 
-console.log(
-  JSON.stringify(
+process.stdout.write(
+  `${JSON.stringify(
     {
       sourceQuestions: source.size,
       categories: {
@@ -694,5 +694,5 @@ console.log(
     },
     null,
     2
-  )
+  )}\n`
 );

@@ -1,10 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { handoffNotificationContent, PrismaMessagingRepository } from './messaging-repository.js';
+import {
+  handoffNotificationContent,
+  PrismaMessagingRepository,
+  whatsappSafeText
+} from './messaging-repository.js';
 
 const tenantId = '019ff9bb-0000-7000-8000-000000000101';
 const conversationId = '019ff9bb-0000-7000-8000-000000000102';
 const triggerMessageId = '019ff9bb-0000-7000-8000-000000000103';
+
+describe('WhatsApp-safe AI copy', () => {
+  it('converts web Markdown headings and bold text to WhatsApp-safe text', () => {
+    expect(whatsappSafeText('#### Paket 7 Sesi\n\n**Rp12.500.000**')).toBe(
+      'Paket 7 Sesi\n\n*Rp12.500.000*'
+    );
+  });
+});
 
 describe('WhatsApp handoff notification', () => {
   it('formats the member context for CS without exposing an internal reason code', () => {
