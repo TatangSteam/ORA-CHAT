@@ -28,7 +28,7 @@ describe('WhatsApp handoff notification', () => {
         reasonCode: 'medical_review_required'
       })
     ).toContain(
-      'Member: Yati Sudono\nWhatsApp: +628123456789\nPertanyaan: Saya pernah kena stroke, apakah cocok?\nAlasan: Perlu evaluasi tim/dokter'
+      'Member: Yati Sudono\nWhatsApp: +628123456789\nPertanyaan: Saya pernah kena stroke, apakah cocok?\nAlasan: Mohon telepon member untuk tindak lanjut pertanyaan kondisi medis'
     );
   });
 
@@ -78,6 +78,11 @@ describe('WhatsApp handoff notification', () => {
     expect(result).toMatchObject({ handoffTaskId: expect.any(String) });
     expect(result?.notificationOutboxMessageId).toEqual(expect.any(String));
     expect(tx.message.create).toHaveBeenCalledTimes(2);
+    expect(tx.conversation.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ handlingMode: 'human', followUpRequired: true })
+      })
+    );
     expect(tx.contact.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {

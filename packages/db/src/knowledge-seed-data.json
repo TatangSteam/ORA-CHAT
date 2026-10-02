@@ -2044,7 +2044,7 @@
       "id": "019ff9bb-5dab-7575-8144-ca68acc7db69",
       "title": "Jam operasional RAHO?",
       "status": "published",
-      "revision": 3,
+      "revision": 7,
       "versions": [
         {
           "id": "019ff9bb-5dab-70ef-a4e1-ac1744e7ed6f",
@@ -2062,11 +2062,63 @@
               "normalizedQuestion": "jam operasional raho?"
             }
           ]
+        },
+        {
+          "id": "227dc3f3-e058-479e-9361-0f05150954b9",
+          "answer": "Jam operasional RAHO:\n\n- Senin–Jumat: 09.00–17.00\n- Sabtu: 09.00–14.00\n- Minggu: libur\n\nKhusus pelayanan homecare, jadwal pelayanan menyesuaikan.",
+          "status": "published",
+          "version": 2,
+          "approvedAt": "2026-09-30T06:23:24.000Z",
+          "archivedAt": null,
+          "contentHash": "b3afa219015c83f5bb4437719b7a7ffc791b3af5c78b2fcd44618b704b0e2d25",
+          "publishedAt": "2026-09-30T06:23:24.000Z",
+          "questionVariants": [
+            {
+              "id": "f12fc82f-1550-4f35-b6a4-d1df9a477c56",
+              "question": "Jam operasional RAHO?",
+              "normalizedQuestion": "jam operasional raho?"
+            },
+            {
+              "id": "5077330d-7fa3-424b-9252-47a91b69e13e",
+              "question": "RAHO buka jam berapa?",
+              "normalizedQuestion": "raho buka jam berapa?"
+            },
+            {
+              "id": "4f8d16da-de9f-457b-a588-e68a889322d5",
+              "question": "Jam buka RAHO",
+              "normalizedQuestion": "jam buka raho"
+            },
+            {
+              "id": "e1fe7301-03db-4990-b8a1-27b00b32d1a9",
+              "question": "Apakah RAHO buka hari Sabtu?",
+              "normalizedQuestion": "apakah raho buka hari sabtu?"
+            },
+            {
+              "id": "b9bf51cc-eef1-44f9-9dd0-7ce2d390bce7",
+              "question": "Apakah RAHO buka hari Minggu?",
+              "normalizedQuestion": "apakah raho buka hari minggu?"
+            },
+            {
+              "id": "a31b3dcc-1cfe-47bd-b841-1e2b81fd7ca7",
+              "question": "Jam pelayanan homecare RAHO",
+              "normalizedQuestion": "jam pelayanan homecare raho"
+            },
+            {
+              "id": "bdb1ba9c-f9df-4fde-94ac-a4a63a4ac5d9",
+              "question": "Jadwal pelayanan homecare",
+              "normalizedQuestion": "jadwal pelayanan homecare"
+            },
+            {
+              "id": "25a2c537-e18f-4d23-868a-ecb4b11cd2e9",
+              "question": "RAHO tutup jam berapa?",
+              "normalizedQuestion": "raho tutup jam berapa?"
+            }
+          ]
         }
       ],
-      "categoryId": "019feec7-989a-79ab-b8e9-5c47ea23b45f",
-      "currentVersionId": "019ff9bb-5dab-70ef-a4e1-ac1744e7ed6f",
-      "publishedVersionId": "019ff9bb-5dab-70ef-a4e1-ac1744e7ed6f"
+      "categoryId": "019feec7-9879-7ef5-9c05-1368af99aa2e",
+      "currentVersionId": "227dc3f3-e058-479e-9361-0f05150954b9",
+      "publishedVersionId": "227dc3f3-e058-479e-9361-0f05150954b9"
     },
     {
       "id": "01a012b3-6adf-76f1-9128-076e0ffa9096",

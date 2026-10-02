@@ -91,7 +91,10 @@ import { serializeSseEvent, TenantEventHub } from './event-hub.js';
 import { shouldRunAiAutomation } from './inbound-routing.js';
 import { dependencyStatuses, type StorageProbe } from './operations.js';
 import { PrismaMessagingRepository } from './messaging-repository.js';
-import { PrismaKnowledgeRepository } from './knowledge-repository.js';
+import {
+  CUSTOMER_ADMIN_HANDOFF_RESPONSE,
+  PrismaKnowledgeRepository
+} from './knowledge-repository.js';
 import { PrismaAiOperationsRepository } from './ai-operations-repository.js';
 import { PrismaTemplateRepository } from './template-repository.js';
 import { type ApiRepository, PrismaApiRepository, type SessionIdentity } from './repository.js';
@@ -1275,11 +1278,9 @@ export const createApp = (options: AppOptions = {}): Express => {
             )
           : {
               id: null,
-              status: 'fallback' as const,
-              answer:
-                result.automationFallback ??
-                'Maaf, layanan informasi sedang tidak tersedia. Silakan coba kembali.',
-              shouldHandoff: false,
+              status: 'handoff' as const,
+              answer: CUSTOMER_ADMIN_HANDOFF_RESPONSE,
+              shouldHandoff: true,
               fallbackReason: 'knowledge_unavailable'
             };
         const automated = await messagingRepository.createAutomatedInboundResponse({

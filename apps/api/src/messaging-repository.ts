@@ -80,7 +80,7 @@ export const whatsappSafeText = (value: string): string =>
 const handoffReasonLabel = (reasonCode: string): string => {
   if (reasonCode === 'restricted_or_emergency') return 'Perlu bantuan manusia segera';
   if (reasonCode === 'insufficient_medical_grounding' || reasonCode === 'medical_review_required') {
-    return 'Perlu evaluasi tim/dokter';
+    return 'Mohon telepon member untuk tindak lanjut pertanyaan kondisi medis';
   }
   return 'Perlu tindak lanjut CS';
 };
