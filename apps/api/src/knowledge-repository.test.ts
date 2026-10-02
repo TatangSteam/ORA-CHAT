@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   chunkLexicalText,
   CUSTOMER_ADMIN_HANDOFF_RESPONSE,
+  CUSTOMER_INFORMATION_CONFLICT_HANDOFF_RESPONSE,
+  requiresInformationConflictHandoff,
   CUSTOMER_DEFAULT_CS_HANDOFF_RESPONSE,
   requestsContactNumber,
   CUSTOMER_INTEREST_HANDOFF_RESPONSE,
@@ -964,4 +966,50 @@ describe('default CS contact routing', () => {
       expect(requestsContactNumber(question)).toBe(false);
     }
   );
+});
+
+describe('conflicting customer information handoff', () => {
+  it.each([
+    'Tapi saya pernah tanya sebelum nya , katanya ada di Yogjakarta',
+    'Tapi saya pernah tanya sebelumnya, katanya ada di Yogyakarta',
+    'Kemarin kata CS ada cabang di Jogja',
+    'Padahal katanya ada di Bandung',
+    'Kok jawaban sekarang beda?',
+    'Info yang saya dapat berbeda',
+    'Itu tidak sesuai informasi sebelumnya'
+  ])('hands off before FAQ retrieval or generation: %s', async (question) => {
+    const findMany = vi.fn();
+    const create = vi.fn(async ({ data }) => ({ id: data.id, sources: data.sources.create }));
+    const repository = new PrismaKnowledgeRepository(
+      {
+        knowledgeQuestionVariant: { findMany },
+        $transaction: async (operation: (client: unknown) => Promise<unknown>) =>
+          operation({ aiMessageTrace: { create } })
+      } as never,
+      Buffer.alloc(32),
+      {} as never
+    );
+    const search = vi.spyOn(repository, 'search');
+    const result = await repository.answer('tenant', question, 'request');
+    expect(result).toMatchObject({
+      status: 'handoff',
+      shouldHandoff: true,
+      fallbackReason: 'information_conflict',
+      answer: CUSTOMER_INFORMATION_CONFLICT_HANDOFF_RESPONSE,
+      sources: []
+    });
+    expect(findMany).not.toHaveBeenCalled();
+    expect(search).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'Apakah ada cabang di Yogyakarta?',
+    'Saya mau tanya lokasi cabang',
+    'Apa perbedaan homecare dan terapi di klinik?',
+    'Kemarin saya terapi, berapa harga paketnya?',
+    'Saya pernah tanya harga, boleh lihat paketnya?',
+    'Tapi kalau di Bandung alamatnya di mana?'
+  ])('preserves ordinary questions: %s', (question) => {
+    expect(requiresInformationConflictHandoff(question)).toBe(false);
+  });
 });
