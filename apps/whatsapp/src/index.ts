@@ -31,7 +31,8 @@ if (entryPath === fileURLToPath(import.meta.url)) {
   const server = createWhatsAppHealthServer(() => adapter.isConnected(), {
     token: internalToken,
     store: qrStore,
-    send: (tenantId, recipientJid, content) => adapter.send(tenantId, recipientJid, content),
+    send: (tenantId, recipientJid, content, outboxMessageId) =>
+      adapter.send(tenantId, recipientJid, content, outboxMessageId),
     presence: (tenantId, recipientJid, state) => adapter.presence(tenantId, recipientJid, state),
     reconnect: (tenantId) => adapter.reconnect(tenantId),
     disconnect: (tenantId) => adapter.disconnect(tenantId)

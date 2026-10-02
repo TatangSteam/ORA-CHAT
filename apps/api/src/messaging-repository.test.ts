@@ -227,3 +227,80 @@ describe('handoff notification settings', () => {
     expect(tx.handoffNotificationSetting.updateMany).not.toHaveBeenCalled();
   });
 });
+
+describe('phone reply synchronization', () => {
+  const input = {
+    tenantId,
+    providerEventId: 'phone:upsert',
+    providerMessageId: 'phone',
+    senderJid: '6281234567890@s.whatsapp.net',
+    fromMe: true,
+    displayName: 'Local admin name',
+    content: 'Saya bantu ya',
+    occurredAt: new Date('2026-10-02T03:00:00Z'),
+    requestId: 'request'
+  };
+  const setup = () => {
+    const tx = {
+      contact: { upsert: vi.fn().mockResolvedValue({ id: 'contact' }), updateMany: vi.fn() },
+      conversation: {
+        upsert: vi.fn().mockResolvedValue({ id: conversationId, handlingMode: 'bot' }),
+        updateMany: vi.fn()
+      },
+      message: { create: vi.fn().mockResolvedValue({ id: 'new-message' }) },
+      chatbotRuleVersion: { findFirst: vi.fn() }
+    };
+    const prisma = {
+      message: { findFirst: vi.fn().mockResolvedValue(null) },
+      $transaction: vi.fn(async (operation: (client: typeof tx) => Promise<unknown>) =>
+        operation(tx)
+      )
+    };
+    return { tx, prisma, repository: new PrismaMessagingRepository(prisma as never) };
+  };
+
+  it('stores a sent manual reply without queueing a send, increasing unread count, or running rules/AI', async () => {
+    const { tx, repository } = setup();
+    expect(await repository.ingestInbound(input)).toMatchObject({
+      duplicate: false,
+      automationAllowed: false,
+      ruleOutboxMessageId: null
+    });
+    const data = tx.message.create.mock.calls[0]![0].data;
+    expect(data).toMatchObject({
+      direction: 'outgoing',
+      source: 'manual',
+      status: 'sent',
+      providerMessageId: 'phone',
+      occurredAt: input.occurredAt
+    });
+    expect(data).not.toHaveProperty('outbox');
+    expect(tx.chatbotRuleVersion.findFirst).not.toHaveBeenCalled();
+    const contactData = tx.contact.upsert.mock.calls[0]![0];
+    expect(contactData.create).not.toHaveProperty('displayName');
+    expect(contactData.update).not.toHaveProperty('lastInboundAt');
+    const conversationData = tx.conversation.upsert.mock.calls[0]![0];
+    expect(conversationData.create).toMatchObject({ unreadCount: 0, handlingMode: 'human' });
+    expect(conversationData.update).not.toHaveProperty('unreadCount');
+    expect(tx.conversation.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: [{ lastMessageAt: null }, { lastMessageAt: { lte: input.occurredAt } }]
+        }),
+        data: expect.objectContaining({ handlingMode: 'human' })
+      })
+    );
+  });
+
+  it('deduplicates a dashboard echo or repeated phone event by provider ID', async () => {
+    const { prisma, tx, repository } = setup();
+    prisma.message.findFirst.mockResolvedValue({ id: 'existing', conversationId });
+    expect(await repository.ingestInbound(input)).toMatchObject({
+      duplicate: true,
+      messageId: 'existing',
+      automationAllowed: false
+    });
+    expect(tx.message.create).not.toHaveBeenCalled();
+    expect(tx.conversation.updateMany).not.toHaveBeenCalled();
+  });
+});

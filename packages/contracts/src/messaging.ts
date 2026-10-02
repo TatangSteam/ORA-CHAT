@@ -108,6 +108,7 @@ export const inboundProviderEventSchema = z
     providerEventId: z.string().min(1).max(191),
     providerMessageId: z.string().min(1).max(191),
     senderJid: providerJidSchema,
+    fromMe: z.boolean().optional(),
     displayName: z.string().trim().min(1).max(160).optional(),
     content: z.string().trim().min(1).max(4096),
     occurredAt: z.iso.datetime()

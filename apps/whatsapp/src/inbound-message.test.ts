@@ -190,3 +190,49 @@ describe('WhatsApp inbound normalization', () => {
     expect(result).toMatchObject({ status: 'drop', reason: 'content_too_large' });
   });
 });
+
+describe('phone-sent messages', () => {
+  it('normalizes a phone reply as outgoing and resolves the recipient instead of the local participant', () => {
+    expect(
+      normalizeInboundMessage(
+        message(
+          {
+            id: 'phone-reply',
+            fromMe: true,
+            remoteJid: '123456789012345@lid',
+            remoteJidAlt: '6281234567890@s.whatsapp.net',
+            participantAlt: '6289999999999@s.whatsapp.net'
+          },
+          { conversation: 'Baik, saya bantu ya' }
+        ),
+        new InboundIdentityResolver()
+      )
+    ).toMatchObject({
+      status: 'ok',
+      fromMe: true,
+      senderJid: '6281234567890@s.whatsapp.net',
+      content: 'Baik, saya bantu ya'
+    });
+  });
+  it('does not mistake the local participant for an unresolved recipient', () => {
+    expect(
+      normalizeInboundMessage(
+        message({
+          id: 'phone-reply',
+          fromMe: true,
+          remoteJid: '123456789012345@lid',
+          participantAlt: '6289999999999@s.whatsapp.net'
+        }),
+        new InboundIdentityResolver()
+      )
+    ).toMatchObject({ status: 'drop', reason: 'identity_unresolved' });
+  });
+  it('continues excluding outgoing group messages', () => {
+    expect(
+      normalizeInboundMessage(
+        message({ id: 'group', fromMe: true, remoteJid: '123@g.us' }),
+        new InboundIdentityResolver()
+      )
+    ).toMatchObject({ status: 'drop', reason: 'unsupported_chat' });
+  });
+});

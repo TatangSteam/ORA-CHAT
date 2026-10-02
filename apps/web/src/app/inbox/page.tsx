@@ -82,9 +82,11 @@ export default function InboxPage() {
     };
     const events = new EventSource('/api/admin/v1/events/stream');
     events.addEventListener('message.inbound', refresh);
+    events.addEventListener('message.outbound', refresh);
     const pollingFallback = window.setInterval(refresh, 5_000);
     return () => {
       events.removeEventListener('message.inbound', refresh);
+      events.removeEventListener('message.outbound', refresh);
       events.close();
       window.clearInterval(pollingFallback);
     };

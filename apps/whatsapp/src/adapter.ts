@@ -4,6 +4,7 @@ import { rm } from 'node:fs/promises';
 import makeWASocket, {
   Browsers,
   DisconnectReason,
+  generateMessageIDV2,
   useMultiFileAuthState,
   type ConnectionState,
   type Contact,
@@ -26,6 +27,7 @@ export interface InboundMessage {
   providerEventId: string;
   providerMessageId: string;
   senderJid: string;
+  fromMe?: boolean;
   displayName?: string;
   content: string;
   occurredAt: string;
@@ -58,6 +60,14 @@ const silentLogger: SilentLogger = {
 
 const disconnectStatus = (error: Error | undefined): number | undefined =>
   (error as (Error & { output?: { statusCode?: number } }) | undefined)?.output?.statusCode;
+
+export const providerMessageTime = (message: WAMessage): string => {
+  const seconds = Number(message.messageTimestamp);
+  const milliseconds = seconds * 1000;
+  return Number.isFinite(milliseconds) && milliseconds > 0 && milliseconds <= 8.64e15
+    ? new Date(milliseconds).toISOString()
+    : new Date().toISOString();
+};
 
 export class BaileysAdapter {
   private socket: WASocket | undefined;
@@ -135,8 +145,8 @@ export class BaileysAdapter {
       }
     });
     socket.ev.on('messages.upsert', ({ messages, type }) => {
-      if (type !== 'notify') return;
       for (const message of messages) {
+        if (type !== 'notify' && !message.key.fromMe) continue;
         void this.ingestInbound(message).catch(() => {
           process.stderr.write('{"level":"error","event":"whatsapp_inbound_failed"}\n');
         });
@@ -163,18 +173,16 @@ export class BaileysAdapter {
       ) {
         this.inboundRecovery.enqueue(message);
       }
-      if (normalized.reason !== 'from_me') {
-        process.stdout.write(
-          `${JSON.stringify({
-            level: 'info',
-            event: 'whatsapp_inbound_dropped',
-            reason: normalized.reason,
-            remoteKind: normalized.remoteKind,
-            failureKind,
-            payloadKinds: inboundPayloadKinds(message)
-          })}\n`
-        );
-      }
+      process.stdout.write(
+        `${JSON.stringify({
+          level: 'info',
+          event: 'whatsapp_inbound_dropped',
+          reason: normalized.reason,
+          remoteKind: normalized.remoteKind,
+          failureKind,
+          payloadKinds: inboundPayloadKinds(message)
+        })}\n`
+      );
       return;
     }
     this.inboundRecovery.resolve(normalized.providerMessageId);
@@ -183,21 +191,34 @@ export class BaileysAdapter {
       providerEventId: `${normalized.providerMessageId}:upsert`,
       providerMessageId: normalized.providerMessageId,
       senderJid: normalized.senderJid,
-      ...(message.pushName ? { displayName: message.pushName } : {}),
+      fromMe: normalized.fromMe,
+      ...(!normalized.fromMe && message.pushName ? { displayName: message.pushName } : {}),
       content: normalized.content,
-      occurredAt: new Date().toISOString()
+      occurredAt: providerMessageTime(message)
     });
   }
 
   public async send(
     tenantId: string,
     recipientJid: string,
-    content: string
+    content: string,
+    outboxMessageId: string
   ): Promise<{ providerMessageId: string }> {
     if (tenantId !== this.tenantId || !this.connected || !this.socket) {
       throw new Error('whatsapp_not_connected');
     }
-    const result = await this.socket.sendMessage(recipientJid, { text: content });
+    const outbox = await this.prisma.outboxMessage.findFirst({
+      where: { id: outboxMessageId, tenantId },
+      select: { message: { select: { id: true, providerMessageId: true } } }
+    });
+    if (!outbox) throw new Error('outbox_not_found');
+    const messageId = outbox.message.providerMessageId ?? generateMessageIDV2(this.socket.user?.id);
+    // Persist before sending so even an immediate WhatsApp echo matches the dashboard message.
+    await this.prisma.message.update({
+      where: { id: outbox.message.id },
+      data: { providerMessageId: messageId }
+    });
+    const result = await this.socket.sendMessage(recipientJid, { text: content }, { messageId });
     const providerMessageId = result?.key.id;
     if (!providerMessageId) throw new Error('provider_message_id_missing');
     return { providerMessageId };

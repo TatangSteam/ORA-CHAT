@@ -16,7 +16,8 @@ interface InternalServiceOptions {
   send?: (
     tenantId: string,
     recipientJid: string,
-    content: string
+    content: string,
+    outboxMessageId: string
   ) => Promise<{ providerMessageId: string }>;
   presence?: (
     tenantId: string,
@@ -116,7 +117,9 @@ export const createWhatsAppHealthServer = (
       }
       void readJson(request)
         .then((body) => internalOutboundSendRequestSchema.parseAsync(body))
-        .then((input) => internalQr.send!(input.tenantId, input.recipientJid, input.content))
+        .then((input) =>
+          internalQr.send!(input.tenantId, input.recipientJid, input.content, input.outboxMessageId)
+        )
         .then((result) => {
           response.writeHead(200, {
             'cache-control': 'no-store',

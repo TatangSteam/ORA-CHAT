@@ -1238,11 +1238,15 @@ export const createApp = (options: AppOptions = {}): Express => {
       requestId: requestContext(request).meta.requestId
     });
     if (!result.duplicate) {
-      eventHub.publish(parsed.data.tenantId, 'message.inbound', {
-        conversationId: result.conversationId,
-        messageId: result.messageId,
-        occurredAt: parsed.data.occurredAt
-      });
+      eventHub.publish(
+        parsed.data.tenantId,
+        parsed.data.fromMe ? 'message.outbound' : 'message.inbound',
+        {
+          conversationId: result.conversationId,
+          messageId: result.messageId,
+          occurredAt: parsed.data.occurredAt
+        }
+      );
     }
     if (result.ruleOutboxMessageId && options.outboxEnqueuer) {
       await options.outboxEnqueuer

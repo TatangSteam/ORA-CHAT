@@ -49,6 +49,7 @@ export interface InboundInput {
   providerEventId: string;
   providerMessageId: string;
   senderJid: string;
+  fromMe?: boolean | undefined;
   displayName?: string | undefined;
   content: string;
   occurredAt: Date;
@@ -605,6 +606,7 @@ export class PrismaMessagingRepository {
         automationFallback: null
       };
     }
+    const fromMe = input.fromMe === true;
     const normalizedPhone = normalizeIndonesianPhone(input.senderJid.split('@')[0]!);
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -615,13 +617,13 @@ export class PrismaMessagingRepository {
             tenantId: input.tenantId,
             normalizedPhone,
             providerJid: input.senderJid,
-            ...(input.displayName ? { displayName: input.displayName } : {}),
-            lastInboundAt: input.occurredAt
+            ...(!fromMe && input.displayName ? { displayName: input.displayName } : {}),
+            ...(fromMe ? {} : { lastInboundAt: input.occurredAt })
           },
           update: {
             providerJid: input.senderJid,
-            lastInboundAt: input.occurredAt,
-            ...(input.displayName ? { displayName: input.displayName } : {})
+            ...(fromMe ? {} : { lastInboundAt: input.occurredAt }),
+            ...(!fromMe && input.displayName ? { displayName: input.displayName } : {})
           }
         });
         const conversation = await tx.conversation.upsert({
@@ -637,32 +639,54 @@ export class PrismaMessagingRepository {
             tenantId: input.tenantId,
             contactId: contact.id,
             channel: 'whatsapp',
-            unreadCount: 1,
+            unreadCount: fromMe ? 0 : 1,
+            ...(fromMe ? { handlingMode: 'human' } : {}),
             lastMessageAt: input.occurredAt
           },
           update: {
-            status: 'open',
-            unreadCount: { increment: 1 },
-            lastMessageAt: input.occurredAt
+            ...(fromMe
+              ? {}
+              : {
+                  status: 'open',
+                  unreadCount: { increment: 1 },
+                  lastMessageAt: input.occurredAt
+                })
           }
         });
+        if (fromMe) {
+          // Delayed append events must not move the inbox or activity timestamps backwards.
+          await tx.contact.updateMany({
+            where: {
+              id: contact.id,
+              OR: [{ lastOutboundAt: null }, { lastOutboundAt: { lt: input.occurredAt } }]
+            },
+            data: { lastOutboundAt: input.occurredAt }
+          });
+          await tx.conversation.updateMany({
+            where: {
+              id: conversation.id,
+              OR: [{ lastMessageAt: null }, { lastMessageAt: { lte: input.occurredAt } }]
+            },
+            data: { lastMessageAt: input.occurredAt, handlingMode: 'human', status: 'open' }
+          });
+        }
         const incoming = await tx.message.create({
           data: {
             id: generateUuidV7(),
             tenantId: input.tenantId,
             conversationId: conversation.id,
-            direction: 'incoming',
-            source: 'provider',
+            direction: fromMe ? 'outgoing' : 'incoming',
+            source: fromMe ? 'manual' : 'provider',
             content: input.content,
-            status: 'received',
+            status: fromMe ? 'sent' : 'received',
             providerMessageId: input.providerMessageId,
             occurredAt: input.occurredAt,
             events: {
               create: {
                 id: generateUuidV7(),
                 tenantId: input.tenantId,
-                eventType: 'provider.message.received',
-                toStatus: 'received',
+                eventType: fromMe ? 'provider.message.sent' : 'provider.message.received',
+                toStatus: fromMe ? 'sent' : 'received',
                 providerEventId: input.providerEventId,
                 occurredAt: input.occurredAt
               }
@@ -672,7 +696,7 @@ export class PrismaMessagingRepository {
 
         let ruleOutboxMessageId: string | null = null;
         let automationFallback: string | null = null;
-        if (conversation.handlingMode === 'bot') {
+        if (!fromMe && conversation.handlingMode === 'bot') {
           const version = await tx.chatbotRuleVersion.findFirst({
             where: { tenantId: input.tenantId, status: 'published' },
             include: { rules: { orderBy: { sequence: 'asc' } } }
@@ -724,7 +748,7 @@ export class PrismaMessagingRepository {
           messageId: incoming.id,
           conversationId: conversation.id,
           duplicate: false,
-          automationAllowed: conversation.handlingMode === 'bot',
+          automationAllowed: !fromMe && conversation.handlingMode === 'bot',
           ruleOutboxMessageId,
           automationFallback
         };

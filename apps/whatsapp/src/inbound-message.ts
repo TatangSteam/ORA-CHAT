@@ -22,7 +22,6 @@ const normalizedLid = (value: string | null | undefined): string | null => {
 };
 
 export type InboundDropReason =
-  | 'from_me'
   | 'missing_message_id'
   | 'unsupported_chat'
   | 'identity_unresolved'
@@ -33,6 +32,7 @@ export type NormalizedInboundMessage =
   | {
       status: 'ok';
       providerMessageId: string;
+      fromMe: boolean;
       senderJid: string;
       content: string;
       contentType: string;
@@ -288,12 +288,18 @@ export const normalizeInboundMessage = (
   identities: InboundIdentityResolver
 ): NormalizedInboundMessage => {
   const kind = remoteKind(message.key.remoteJid);
-  if (message.key.fromMe) return { status: 'drop', reason: 'from_me', remoteKind: kind };
   if (!message.key.id) return { status: 'drop', reason: 'missing_message_id', remoteKind: kind };
   if (!['phone', 'lid'].includes(kind)) {
     return { status: 'drop', reason: 'unsupported_chat', remoteKind: kind };
   }
-  const senderJid = identities.resolve(message.key);
+  const senderJid = identities.resolve(
+    message.key.fromMe
+      ? {
+          ...(message.key.remoteJid ? { remoteJid: message.key.remoteJid } : {}),
+          ...(message.key.remoteJidAlt ? { remoteJidAlt: message.key.remoteJidAlt } : {})
+        }
+      : message.key
+  );
   if (!senderJid) {
     return { status: 'drop', reason: 'identity_unresolved', remoteKind: kind };
   }
@@ -305,6 +311,7 @@ export const normalizeInboundMessage = (
   return {
     status: 'ok',
     providerMessageId: message.key.id,
+    fromMe: message.key.fromMe === true,
     senderJid,
     content: text.content,
     contentType: text.contentType
