@@ -44,6 +44,7 @@ describe('WhatsApp handoff notification', () => {
         update: vi.fn().mockResolvedValue({})
       },
       conversation: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
         upsert: vi.fn().mockResolvedValue({ id: '019ff9bb-0000-7000-8000-000000000105' }),
         update: vi.fn().mockResolvedValue({})
       }
@@ -114,7 +115,11 @@ describe('WhatsApp handoff notification', () => {
         create: vi.fn()
       },
       contact: { upsert: vi.fn(), update: vi.fn() },
-      conversation: { upsert: vi.fn(), update: vi.fn().mockResolvedValue({}) }
+      conversation: {
+        upsert: vi.fn(),
+        update: vi.fn().mockResolvedValue({}),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 })
+      }
     };
     const prisma = {
       handoffNotificationSetting: { findUnique: vi.fn().mockResolvedValue(null) },
@@ -302,5 +307,81 @@ describe('phone reply synchronization', () => {
     });
     expect(tx.message.create).not.toHaveBeenCalled();
     expect(tx.conversation.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('CS takeover during AI generation', () => {
+  it('discards the generated response if CS has already switched the conversation to human', async () => {
+    const create = vi.fn();
+    const updateMany = vi.fn().mockResolvedValue({ count: 0 });
+    const repository = new PrismaMessagingRepository({
+      conversation: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: conversationId,
+          contact: { displayName: 'Member', normalizedPhone: '628111111111' }
+        })
+      },
+      handoffNotificationSetting: { findUnique: vi.fn().mockResolvedValue(null) },
+      $transaction: async (operation: (client: unknown) => Promise<unknown>) =>
+        operation({ conversation: { updateMany }, message: { create } })
+    } as never);
+    const result = await repository.createAutomatedInboundResponse({
+      tenantId,
+      conversationId,
+      triggerMessageId,
+      content: 'Jawaban AI terlambat',
+      shouldHandoff: false,
+      reasonCode: 'answered',
+      traceId: null,
+      now: new Date(),
+      customerQuestion: 'Halo'
+    });
+    expect(result).toBeNull();
+    expect(create).not.toHaveBeenCalled();
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: conversationId, tenantId, handlingMode: 'bot' } })
+    );
+  });
+});
+
+describe('dashboard CS reply takeover', () => {
+  it('switches both new and existing conversations to human when an admin replies', async () => {
+    const tx = {
+      contact: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValue({
+            id: 'contact',
+            providerJid: '6281234567890@s.whatsapp.net',
+            consentStatus: 'unknown'
+          }),
+        update: vi.fn()
+      },
+      conversation: { upsert: vi.fn().mockResolvedValue({ id: conversationId }), update: vi.fn() },
+      message: { create: vi.fn() },
+      idempotencyKey: { create: vi.fn() },
+      auditLog: { create: vi.fn() }
+    };
+    const repository = new PrismaMessagingRepository({
+      idempotencyKey: { findUnique: vi.fn().mockResolvedValue(null) },
+      $transaction: async (operation: (client: unknown) => Promise<unknown>) => operation(tx)
+    } as never);
+    await repository.createOutbound({
+      tenantId,
+      actorUserId: 'admin',
+      contactId: 'contact',
+      idempotencyKey: 'reply',
+      requestHash: 'hash',
+      source: 'manual',
+      content: 'Saya bantu ya',
+      requestId: 'request',
+      now: new Date()
+    });
+    expect(tx.conversation.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ handlingMode: 'human' }),
+        update: expect.objectContaining({ handlingMode: 'human' })
+      })
+    );
   });
 });

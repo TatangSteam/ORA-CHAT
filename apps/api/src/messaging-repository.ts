@@ -386,9 +386,13 @@ export class PrismaMessagingRepository {
             id: generateUuidV7(),
             tenantId: input.tenantId,
             contactId: contact.id,
-            channel: 'whatsapp'
+            channel: 'whatsapp',
+            ...(input.source === 'manual' ? { handlingMode: 'human' } : {})
           },
-          update: { status: 'open' }
+          update: {
+            status: 'open',
+            ...(input.source === 'manual' ? { handlingMode: 'human' } : {})
+          }
         });
         if (input.replyToMessageId) {
           const reply = await tx.message.findFirst({
@@ -806,6 +810,12 @@ export class PrismaMessagingRepository {
         ? normalizeIndonesianPhone(input.csNotificationPhone)
         : null;
     return this.prisma.$transaction(async (tx) => {
+      // Lock and recheck after generation: a CS reply may have taken over meanwhile.
+      const automatedConversation = await tx.conversation.updateMany({
+        where: { id: input.conversationId, tenantId: input.tenantId, handlingMode: 'bot' },
+        data: { handlingMode: 'bot' }
+      });
+      if (automatedConversation.count === 0) return null;
       const messageId = generateUuidV7();
       const outboxMessageId = generateUuidV7();
       let handoffTaskId: string | null = null;

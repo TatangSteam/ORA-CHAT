@@ -163,6 +163,56 @@ export const deliverOutbox = async (
     return { status: 'deferred' as const, reason: 'whatsapp_not_connected' };
   }
 
+  // A queued answer can become obsolete while CS is replying from the phone/dashboard.
+  const superseded = await prisma.message.findFirst({
+    where: {
+      id: claimed.messageId,
+      tenantId: job.tenantId,
+      source: { in: ['ai', 'rule'] },
+      events: { none: { eventType: 'handoff.notification.created' } },
+      conversation: {
+        messages: {
+          some: {
+            direction: 'outgoing',
+            source: 'manual',
+            status: { notIn: ['failed', 'cancelled'] },
+            occurredAt: { gte: claimed.message.occurredAt }
+          }
+        }
+      }
+    },
+    select: { id: true }
+  });
+  if (superseded) {
+    const cancelledAt = now();
+    await prisma.$transaction(async (tx) => {
+      await tx.outboxMessage.update({
+        where: { id: claimed.id },
+        data: {
+          status: 'cancelled',
+          completedAt: cancelledAt,
+          leaseExpiresAt: null,
+          leasedBy: null,
+          lastErrorCode: 'cs_replied'
+        }
+      });
+      await tx.message.update({ where: { id: claimed.messageId }, data: { status: 'cancelled' } });
+      await tx.messageEvent.create({
+        data: {
+          id: generateUuidV7(),
+          tenantId: job.tenantId,
+          messageId: claimed.messageId,
+          eventType: 'automation.cancelled',
+          fromStatus: 'leased',
+          toStatus: 'cancelled',
+          safeMetadata: { reason: 'cs_replied' },
+          occurredAt: cancelledAt
+        }
+      });
+    });
+    return { status: 'noop' as const };
+  }
+
   const sendingAt = now();
   await prisma.$transaction(async (tx) => {
     await tx.outboxMessage.update({ where: { id: claimed.id }, data: { status: 'sending' } });
