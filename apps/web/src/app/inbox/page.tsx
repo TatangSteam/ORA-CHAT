@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Shell } from '../../components/shell';
-import { SectionHelp, FieldHelp } from '../../components/section-help';
+import { FieldHelp } from '../../components/section-help';
 import { useSession } from '../../components/use-session';
 import { api, ApiError } from '../../lib/api';
 import type { ConversationSummary, MessageSummary } from '../../lib/messaging';
@@ -181,7 +181,6 @@ export default function InboxPage() {
             <div>
               <p className="eyebrow">WhatsApp</p>
               <h2>Percakapan</h2>
-              <SectionHelp topic="inbox-list" />
             </div>
             <span className="count-badge">{conversations.length}</span>
           </div>
@@ -295,7 +294,6 @@ export default function InboxPage() {
                   ) : null}
                 </div>
               </div>
-              <SectionHelp topic="inbox-chat" />
               {notice && (
                 <p className="notice success-notice automation-notice" role="status">
                   {notice}
@@ -336,7 +334,6 @@ export default function InboxPage() {
                 ))}
                 {messages.length === 0 && <p className="empty-state">Timeline masih kosong.</p>}
               </div>
-              <SectionHelp topic="inbox-reply" />
               <form className="reply-form" onSubmit={(event) => void sendReply(event)}>
                 <label>
                   Balasan manual
@@ -354,8 +351,7 @@ export default function InboxPage() {
                     antrean pengiriman
                   </small>
                   <FieldHelp id="help-inbox-1">
-                    Balasan untuk pelanggan yang dipilih. Tombol kirim mengantrekan pesan WhatsApp
-                    sungguhan; periksa penerima terlebih dahulu.
+                    Pesan akan dikirim ke WhatsApp pelanggan yang dipilih.
                   </FieldHelp>
                 </label>
                 <button className="primary-button" disabled={busy || !canSend} type="submit">

@@ -1,3 +1,40 @@
+.page-guide-compact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.3rem 1rem;
+  margin-bottom: 1rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.page-guide-compact p {
+  margin: 0;
+}
+.page-guide-compact a {
+  flex-shrink: 0;
+  color: var(--accent);
+  font-weight: 600;
+}
+.section-help-disclosure {
+  margin: 0.4rem 0 0.75rem;
+  font-size: 0.8125rem;
+}
+.section-help-disclosure > summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 500;
+}
+.section-help-disclosure > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.section-help-disclosure .section-help {
+  max-height: 18rem;
+  overflow-y: auto;
+}
+
 .guidebook {
   max-width: 1320px;
   margin: 0 auto;
@@ -3433,4 +3470,81 @@ button:disabled {
     grid-row: auto;
     justify-self: start;
   }
+}
+
+/* Keep the Inbox workspace inside the available viewport. */
+@media (min-width: 1101px) {
+  .content:has(.inbox-layout) {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 24px;
+    overflow: hidden;
+  }
+  .content:has(.inbox-layout) > .page-guide-compact {
+    flex: 0 0 auto;
+    margin: 0;
+  }
+  .content .inbox-layout {
+    flex: 1 1 0;
+    height: auto;
+    min-height: 0;
+    grid-template-columns: minmax(280px, 30%) minmax(0, 1fr);
+  }
+  .inbox-layout > .section-card {
+    min-height: 0;
+    padding: 16px;
+  }
+  .inbox-layout .conversation-list > .section-heading {
+    flex: 0 0 auto;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+  }
+  .inbox-layout .timeline-panel > .section-heading {
+    flex: 0 0 auto;
+    margin-bottom: 0;
+    padding-bottom: 12px;
+  }
+  .inbox-layout .timeline {
+    flex: 1 1 0;
+    min-height: 100px;
+  }
+  .inbox-layout .reply-form {
+    flex: 0 0 auto;
+    margin-top: 0;
+    padding-top: 10px;
+  }
+  .inbox-layout .reply-form label {
+    margin-bottom: 8px;
+  }
+  .inbox-layout .reply-form textarea {
+    height: 64px;
+    min-height: 64px;
+  }
+  .inbox-layout .reply-form .field-help {
+    margin-top: 2px;
+    font-size: 0.75rem;
+  }
+}
+
+.conversation-list .list-stack {
+  flex: 1 1 0;
+  grid-auto-rows: minmax(80px, max-content);
+  scrollbar-gutter: stable;
+}
+.conversation-list .list-row {
+  min-height: 80px;
+  align-self: start;
+}
+.message-bubble.outgoing small {
+  color: #526273;
+}
+@media (max-width: 1100px) {
+  .inbox-layout .conversation-list {
+    height: 440px;
+    max-height: 440px;
+  }
+}
+.conversation-list .list-row small {
+  color: #526273;
 }

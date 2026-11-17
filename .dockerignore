@@ -1,6 +1,7 @@
 .git
 .github
 .next
+**/.next
 .pnpm-store
 .secrets
 .runtime

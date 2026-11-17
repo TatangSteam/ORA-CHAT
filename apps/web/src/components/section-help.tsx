@@ -312,9 +312,15 @@ export const sectionHelp = {
   }
 } satisfies Record<string, Help>;
 
-export function SectionHelp({ topic }: { topic: keyof typeof sectionHelp }) {
+export function SectionHelp({
+  topic,
+  expanded = false
+}: {
+  topic: keyof typeof sectionHelp;
+  expanded?: boolean;
+}) {
   const content: Help = sectionHelp[topic];
-  return (
+  const explanation = (
     <div className="section-help" aria-label="Penjelasan bagian">
       <p>
         <strong>Fungsi: </strong>
@@ -335,6 +341,13 @@ export function SectionHelp({ topic }: { topic: keyof typeof sectionHelp }) {
         </dl>
       )}
     </div>
+  );
+  if (expanded) return explanation;
+  return (
+    <details className="section-help-disclosure">
+      <summary>Panduan bagian ini</summary>
+      {explanation}
+    </details>
   );
 }
 

@@ -28,9 +28,17 @@ test('knowledge explains the form and publication stages next to the controls', 
   const editor = page
     .locator('section')
     .filter({ has: page.getByRole('heading', { name: 'Tambah knowledge', exact: true }) });
+  await editor.locator('.section-help-disclosure > summary').click();
   await expect(editor.getByLabel('Penjelasan bagian')).toContainText(
     'Draft belum menjadi sumber aktif'
   );
+  await page
+    .locator('.section-card')
+    .filter({
+      has: page.getByRole('heading', { name: 'Daftar informasi dan status publikasi', exact: true })
+    })
+    .locator('.section-help-disclosure > summary')
+    .click();
   await expect(
     page.getByRole('textbox', { name: 'Judul', exact: true })
   ).toHaveAccessibleDescription(/Nama topik yang jelas/);
@@ -51,6 +59,7 @@ test('knowledge explains the form and publication stages next to the controls', 
 test('compose explains real sending and scheduling on a narrow screen', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/compose');
+  await page.locator('.section-help-disclosure > summary').click();
   await expect(
     page.getByRole('textbox', { name: 'Nomor tujuan', exact: true })
   ).toHaveAccessibleDescription(/Periksa agar tidak salah kirim/);
@@ -77,12 +86,8 @@ test('saves a handoff scenario without requiring knowledge citations', async ({ 
     await route.fulfill({ json: { data: [], meta: { requestId: 'guide-test' } } });
   });
   await page.goto('/ai-readiness');
-  await expect(
-    page.getByRole('heading', { name: 'Petunjuk penggunaan', exact: true })
-  ).toBeVisible();
-  await expect(
-    page.getByText('Pengujian tidak mengirim WhatsApp.', { exact: false })
-  ).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Baca panduan', exact: true })).toBeVisible();
+  await expect(page.locator('.section-help-disclosure[open]')).toHaveCount(0);
   await page.getByLabel('Nama', { exact: true }).fill('Permintaan bantuan manusia');
   await page
     .getByRole('textbox', { name: 'Pertanyaan', exact: true })

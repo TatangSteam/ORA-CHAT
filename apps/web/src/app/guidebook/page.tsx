@@ -231,7 +231,7 @@ export default function GuidebookPage() {
                   </ol>
                   <h3>Bagian, tombol, dan hasilnya</h3>
                   {feature.topics.map((topic) => (
-                    <SectionHelp topic={topic} key={topic} />
+                    <SectionHelp topic={topic} key={topic} expanded />
                   ))}
                   <div className="guidebook-example">
                     <h3>Contoh penggunaan</h3>

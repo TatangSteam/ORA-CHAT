@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 type Guide = { purpose: string; steps: string[]; note: string };
 
 export const pageGuides: Record<string, Guide> = {
@@ -159,18 +161,9 @@ export function PageGuide({ pathname }: { pathname: string }) {
   const guide = pageGuides[pathname];
   if (!guide) return null;
   return (
-    <aside className="page-guide" aria-label="Petunjuk penggunaan">
-      <h2>Petunjuk penggunaan</h2>
+    <aside className="page-guide-compact" aria-label="Petunjuk penggunaan">
       <p>{guide.purpose}</p>
-      <ol>
-        {guide.steps.map((step) => (
-          <li key={step}>{step}</li>
-        ))}
-      </ol>
-      <p className="page-guide-note">
-        <strong>Perhatikan: </strong>
-        {guide.note}
-      </p>
+      <Link href={`/guidebook#fitur-${pathname.slice(1)}`}>Baca panduan</Link>
     </aside>
   );
 }
