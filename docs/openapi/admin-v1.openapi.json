@@ -240,6 +240,72 @@
         }
       }
     },
+    "/api/admin/v1/ai/provider-connections/discover-models": {
+      "post": {
+        "summary": "Discover model IDs using a write-only draft credential or a saved connection",
+        "description": "Body is either {connectionId} or {provider,transport,purpose,baseUrl?,credential?,timeoutMs?}. No model is required. Returns data:string[]. Secrets are never returned or persisted by draft discovery. Shared limit: 10 discovery/probe/apply requests per minute per tenant/user.",
+        "x-permission": "ai.settings.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Csrf" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" },
+          "422": {
+            "description": "Safe AI_PROVIDER_* error category (unauthorized, forbidden, quota_exceeded, rate_limited, model_not_found, incompatible, timeout, blocked_url, unavailable)."
+          },
+          "429": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/ai/provider-connections/{id}/model-test": {
+      "post": {
+        "summary": "Probe a candidate chat model without modifying the saved or active model",
+        "description": "Body: {modelId,expectedRevision,reason}. Returns {modelId,healthState:'ready',latencyMs,actualModel,providerRequestId}. Uses server-held credentials and structured generation; does not require model-list membership.",
+        "x-permission": "ai.settings.manage",
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Id" },
+          { "$ref": "#/components/parameters/Csrf" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" },
+          "409": { "$ref": "#/components/responses/Error" },
+          "422": { "$ref": "#/components/responses/Error" },
+          "429": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/v1/ai/provider-connections/{id}/model-apply": {
+      "post": {
+        "summary": "Re-test and atomically activate a candidate chat model",
+        "description": "Body: {modelId,expectedRevision,expectedIntegrationRevision,reason}. Requires ai.activate AND ai.settings.manage. Re-runs server-side structured generation before a revision-guarded transaction, retaining the current configuration on failure or conflict. Returns {connection,integration,test}.",
+        "x-permission": "ai.activate",
+        "x-additional-permissions": ["ai.settings.manage"],
+        "x-csrf": true,
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Id" },
+          { "$ref": "#/components/parameters/Csrf" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Success" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" },
+          "409": { "$ref": "#/components/responses/Error" },
+          "422": { "$ref": "#/components/responses/Error" },
+          "429": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
     "/api/admin/v1/ai/provider-connections/{id}": {
       "post": {
         "summary": "Update provider configuration and require a new test",

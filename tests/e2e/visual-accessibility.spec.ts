@@ -22,6 +22,33 @@ const assertAccessible = async (page: Page) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true
   );
+  const content = page.locator('main.content');
+  if (await content.count()) {
+    if (process.env.UI_LAYOUT_DEBUG === '1') {
+      const diagnostic = await content.evaluate((element) => {
+        const boundary = element.getBoundingClientRect();
+        return {
+          width: element.clientWidth,
+          scrollWidth: element.scrollWidth,
+          overflowing: Array.from(element.querySelectorAll('*'))
+            .filter((node) => node.getBoundingClientRect().right > boundary.right + 1)
+            .slice(0, 12)
+            .map((node) => ({
+              tag: node.tagName,
+              className: node.className,
+              width: node.getBoundingClientRect().width,
+              right: node.getBoundingClientRect().right,
+              flex: getComputedStyle(node).flex,
+              minWidth: getComputedStyle(node).minWidth
+            }))
+        };
+      });
+      if (diagnostic.scrollWidth > diagnostic.width + 1) console.log(JSON.stringify(diagnostic));
+    }
+    expect(
+      await content.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)
+    ).toBe(true);
+  }
 };
 
 const shellRoutes = [
@@ -60,7 +87,7 @@ for (const viewport of [
         await page.goto(`/${route}`);
         await expect(page.locator('main')).toBeVisible();
         if (route === 'ai-settings') {
-          await expect(page.getByRole('heading', { name: 'Tambahkan provider' })).toBeVisible();
+          await expect(page.getByRole('region', { name: 'Pengaturan koneksi AI' })).toBeVisible();
         }
         const snapshot = route === 'ai-settings' ? 'v2-ai-settings' : route;
         await expect(page).toHaveScreenshot(`${viewport.name}-${snapshot}.png`, {
@@ -81,7 +108,7 @@ for (const viewport of [
       await expect(page.getByLabel('Username')).toBeFocused();
 
       await login(page);
-      for (const route of shellRoutes) {
+      for (const route of [...shellRoutes, 'agents', 'handoff-notifications']) {
         await page.goto(`/${route}`);
         await assertAccessible(page);
       }

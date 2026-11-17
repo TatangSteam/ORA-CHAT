@@ -56,8 +56,8 @@ const connectionFields = z
   })
   .strict();
 
-function validateConnection(
-  value: z.infer<typeof connectionFields>,
+function validateProvider(
+  value: Pick<z.infer<typeof connectionFields>, 'provider' | 'purpose' | 'transport' | 'baseUrl'>,
   context: z.RefinementCtx
 ): void {
   if (value.provider === 'anthropic' && value.purpose === 'embedding') {
@@ -80,6 +80,13 @@ function validateConnection(
   if (value.provider === 'mock' && (value.baseUrl || value.transport !== 'native')) {
     context.addIssue({ code: 'custom', message: 'Mock provider has no base URL' });
   }
+}
+
+function validateConnection(
+  value: z.infer<typeof connectionFields>,
+  context: z.RefinementCtx
+): void {
+  validateProvider(value, context);
   if (value.purpose === 'embedding' && !value.dimensions) {
     context.addIssue({ code: 'custom', message: 'Embedding dimensions are required' });
   }
@@ -111,6 +118,34 @@ export const aiConnectionTestSchema = z
   .object({
     expectedRevision: z.number().int().min(0),
     reason: z.string().trim().min(8).max(500)
+  })
+  .strict();
+
+const aiModelIdSchema = connectionFields.shape.modelId;
+const draftDiscoverySchema = connectionFields
+  .pick({
+    provider: true,
+    transport: true,
+    purpose: true,
+    baseUrl: true,
+    credential: true,
+    timeoutMs: true
+  })
+  .strict()
+  .superRefine(validateProvider);
+
+export const aiModelDiscoverySchema = z.union([
+  z.object({ connectionId: z.uuid() }).strict(),
+  draftDiscoverySchema
+]);
+export const aiModelCandidateTestSchema = aiConnectionTestSchema
+  .extend({
+    modelId: aiModelIdSchema
+  })
+  .strict();
+export const aiModelCandidateApplySchema = aiModelCandidateTestSchema
+  .extend({
+    expectedIntegrationRevision: z.number().int().min(0)
   })
   .strict();
 export const aiIntegrationActivationSchema = z
@@ -170,5 +205,8 @@ export type AiProviderConnectionUpdate = z.infer<typeof aiProviderConnectionUpda
 export type AiCredentialReplace = z.infer<typeof aiCredentialReplaceSchema>;
 export type AiCredentialDelete = z.infer<typeof aiCredentialDeleteSchema>;
 export type AiConnectionTest = z.infer<typeof aiConnectionTestSchema>;
+export type AiModelDiscovery = z.infer<typeof aiModelDiscoverySchema>;
+export type AiModelCandidateTest = z.infer<typeof aiModelCandidateTestSchema>;
+export type AiModelCandidateApply = z.infer<typeof aiModelCandidateApplySchema>;
 export type AiIntegrationActivation = z.infer<typeof aiIntegrationActivationSchema>;
 export type AiIntegrationDeactivate = z.infer<typeof aiIntegrationDeactivateSchema>;

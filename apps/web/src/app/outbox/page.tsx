@@ -44,17 +44,17 @@ export default function OutboxPage() {
   };
 
   return (
-    <Shell eyebrow="Pesan" title="Riwayat outbox">
+    <Shell eyebrow="Pesan" title="Riwayat pengiriman">
       <section className="section-card">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Source of truth</p>
-            <h2>Pengiriman durable</h2>
+            <p className="eyebrow">Riwayat pesan</p>
+            <h2>Status pengiriman</h2>
           </div>
           <span className="count-badge">{items.length}</span>
         </div>
         <label>
-          Alasan aksi retry, cancel, atau reconcile
+          Catatan tindakan
           <input minLength={8} value={reason} onChange={(event) => setReason(event.target.value)} />
         </label>
         {error && <p className="error-summary">{error}</p>}
@@ -89,7 +89,7 @@ export default function OutboxPage() {
                     disabled={busyId === item.id}
                     onClick={() => void mutate(item.id, 'retry')}
                   >
-                    Retry
+                    Coba lagi
                   </button>
                 )}
                 {item.status === 'unknown' && (
@@ -113,7 +113,7 @@ export default function OutboxPage() {
               </div>
             </article>
           ))}
-          {items.length === 0 && <p className="empty-state">Outbox masih kosong.</p>}
+          {items.length === 0 && <p className="empty-state">Belum ada riwayat pengiriman.</p>}
         </div>
       </section>
     </Shell>

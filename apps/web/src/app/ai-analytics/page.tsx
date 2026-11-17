@@ -42,7 +42,8 @@ const USD_TO_IDR = 16_500;
 const SELLING_MULTIPLIER = 1.25;
 
 export default function AiAnalyticsPage() {
-  const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [snapshot, setSnapshot] = useState<Analytics | null>(null);
+  const [loadedDays, setLoadedDays] = useState<number | null>(null);
   const [days, setDays] = useState(7);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -50,7 +51,10 @@ export default function AiAnalyticsPage() {
     setError(null);
     void api<Analytics>(`/ai/analytics?days=${days}`)
       .then(({ data }) => {
-        if (active) setAnalytics(data);
+        if (active) {
+          setSnapshot(data);
+          setLoadedDays(days);
+        }
       })
       .catch(() => {
         if (active) setError('Meter token tidak dapat dimuat.');
@@ -59,6 +63,8 @@ export default function AiAnalyticsPage() {
       active = false;
     };
   }, [days]);
+  const analytics = loadedDays === days && !error ? snapshot : null;
+  const loading = !analytics && !error;
   const percent = (value: number) => `${Math.round(value * 100)}%`;
   const number = (value: number) => new Intl.NumberFormat('id-ID').format(value);
   const rupiah = (value: number, maximumFractionDigits = 0) =>
@@ -76,11 +82,11 @@ export default function AiAnalyticsPage() {
   const outputSellingRate = (OUTPUT_USD_PER_MILLION / 1_000_000) * USD_TO_IDR * SELLING_MULTIPLIER;
   const sellingPriceIdr = inputTokens * inputSellingRate + outputTokens * outputSellingRate;
   return (
-    <Shell eyebrow="PII-free observability" title="Analytics AI">
-      <section className="section-card token-usage-panel">
+    <Shell eyebrow="Pemakaian dan kualitas" title="Analitik AI">
+      <section className="section-card token-usage-panel" aria-busy={loading}>
         <div className="section-heading compact">
           <div>
-            <p className="eyebrow">API token meter</p>
+            <p className="eyebrow">Pemakaian API</p>
             <h2>Pemakaian token provider</h2>
           </div>
           <div aria-label="Pilih periode token" className="token-period-selector">
@@ -89,10 +95,14 @@ export default function AiAnalyticsPage() {
                 aria-pressed={days === option}
                 className={days === option ? 'is-active' : ''}
                 key={option}
-                onClick={() => setDays(option)}
+                onClick={() => {
+                  if (option === days) return;
+                  setError(null);
+                  setDays(option);
+                }}
                 type="button"
               >
-                {option}H
+                {option} hari
               </button>
             ))}
           </div>
@@ -101,11 +111,15 @@ export default function AiAnalyticsPage() {
           <p className="error-summary" role="alert">
             {error}
           </p>
+        ) : !analytics ? (
+          <p className="empty-state" role="status">
+            Memuat pemakaian untuk {days} hari terakhir…
+          </p>
         ) : (
           <div className="token-usage-grid">
             <div className="token-total-block">
               <strong>{number(totalTokens)}</strong>
-              <span>token dipakai dalam {days} hari terakhir</span>
+              <span>token dipakai dalam {analytics.windowDays} hari terakhir</span>
               <small>
                 Rata-rata {number(analytics?.averageTokensPerRequest ?? 0)} token per request
               </small>
@@ -152,84 +166,93 @@ export default function AiAnalyticsPage() {
             </div>
           </div>
         )}
-        <div className="token-selling-panel">
-          <div className="token-selling-summary">
-            <div>
-              <p className="eyebrow">Estimasi tagihan</p>
-              <h3>Harga jual pemakaian AI</h3>
-              <small>
-                Untuk {number(totalTokens)} token dalam {days} hari terakhir
-              </small>
+        {analytics ? (
+          <div className="token-selling-panel">
+            <div className="token-selling-summary">
+              <div>
+                <p className="eyebrow">Estimasi tagihan</p>
+                <h3>Harga jual pemakaian AI</h3>
+                <small>
+                  Untuk {number(totalTokens)} token dalam {analytics.windowDays} hari terakhir
+                </small>
+              </div>
+              <strong>{rupiah(sellingPriceIdr)}</strong>
             </div>
-            <strong>{rupiah(sellingPriceIdr)}</strong>
+            <div aria-label="Harga jual token" className="token-selling-rates">
+              <span>
+                Input <strong>{rupiah(inputSellingRate, 6)}</strong> / token
+              </span>
+              <span>
+                Output <strong>{rupiah(outputSellingRate, 6)}</strong> / token
+              </span>
+            </div>
           </div>
-          <div aria-label="Harga jual token" className="token-selling-rates">
-            <span>
-              Input <strong>{rupiah(inputSellingRate, 6)}</strong> / token
-            </span>
-            <span>
-              Output <strong>{rupiah(outputSellingRate, 6)}</strong> / token
-            </span>
-          </div>
-        </div>
+        ) : null}
         <p className="token-meter-note">
           Meter menghitung token yang dilaporkan provider untuk request chat. Angka ini menunjukkan
           pemakaian, bukan sisa saldo atau batas kuota akun provider.
         </p>
       </section>
-      <section className="metric-grid">
-        <article className="metric-card">
-          <span>Answer rate</span>
-          <strong>{percent(analytics?.answerRate ?? 0)}</strong>
-          <small>{analytics?.answered ?? 0} answered</small>
-        </article>
-        <article className="metric-card">
-          <span>Supported</span>
-          <strong>{percent(analytics?.supportedRate ?? 0)}</strong>
-          <small>{analytics?.fallback ?? 0} fallback</small>
-        </article>
-        <article className="metric-card">
-          <span>Handoff</span>
-          <strong>{analytics?.handoffs ?? 0}</strong>
-          <small>{analytics?.unanswered ?? 0} unanswered</small>
-        </article>
-        <article className="metric-card">
-          <span>Latency p95</span>
-          <strong>{analytics?.latencyP95Ms ?? 0} ms</strong>
-          <small>p50 {analytics?.latencyP50Ms ?? 0} ms</small>
-        </article>
-        <article className="metric-card">
-          <span>Token API</span>
-          <strong>{number(totalTokens)}</strong>
-          <small>{analytics?.meteredRequests ?? 0} request terukur</small>
-        </article>
-        <article className="metric-card">
-          <span>Queue age</span>
-          <strong>{Math.round((analytics?.oldestQueueAgeMs ?? 0) / 1000)} dtk</strong>
-          <small>oldest pending</small>
-        </article>
-      </section>
-      <section className="section-card">
-        <p className="eyebrow">Provider operations</p>
-        <h2>Latency dan error</h2>
-        <div className="stack-list">
-          {(analytics?.providers ?? []).map((provider) => (
-            <article className="list-row" key={provider.provider}>
-              <div>
-                <strong>{provider.provider}</strong>
-                <p>
-                  {provider.requests} request · {provider.errors} non-answered
-                </p>
-              </div>
-              <span className="state-badge">{provider.averageLatencyMs} ms</span>
+      {analytics ? (
+        <>
+          <section className="metric-grid">
+            <article className="metric-card">
+              <span>Jawaban berhasil</span>
+              <strong>{percent(analytics?.answerRate ?? 0)}</strong>
+              <small>{analytics.answered} terjawab</small>
             </article>
-          ))}
-        </div>
-        <p className="muted">
-          Analytics hanya menyimpan status, penggunaan, latency, dan estimasi biaya; isi pertanyaan
-          serta identitas pelanggan tidak ditampilkan.
-        </p>
-      </section>
+            <article className="metric-card">
+              <span>Didukung sumber</span>
+              <strong>{percent(analytics?.supportedRate ?? 0)}</strong>
+              <small>{analytics.fallback} jawaban cadangan</small>
+            </article>
+            <article className="metric-card">
+              <span>Handoff</span>
+              <strong>{analytics?.handoffs ?? 0}</strong>
+              <small>{analytics.unanswered} belum terjawab</small>
+            </article>
+            <article className="metric-card">
+              <span>Waktu respons p95</span>
+              <strong>{analytics?.latencyP95Ms ?? 0} ms</strong>
+              <small>p50 {analytics?.latencyP50Ms ?? 0} ms</small>
+            </article>
+            <article className="metric-card">
+              <span>Token API</span>
+              <strong>{number(totalTokens)}</strong>
+              <small>{analytics?.meteredRequests ?? 0} request terukur</small>
+            </article>
+            <article className="metric-card">
+              <span>Waktu antrean</span>
+              <strong>{Math.round((analytics?.oldestQueueAgeMs ?? 0) / 1000)} dtk</strong>
+              <small>permintaan terlama yang menunggu</small>
+            </article>
+          </section>
+          <section className="section-card">
+            <p className="eyebrow">Status provider</p>
+            <h2>Waktu respons dan kesalahan</h2>
+            <div className="stack-list">
+              {(analytics?.providers ?? []).map((provider) => (
+                <article className="list-row" key={provider.provider}>
+                  <div>
+                    <strong>{provider.provider}</strong>
+                    <p>
+                      {provider.requests} permintaan · {provider.errors} tidak terjawab
+                    </p>
+                  </div>
+                  <span className="state-badge">{provider.averageLatencyMs} ms</span>
+                </article>
+              ))}
+              {analytics.providers.length === 0 ? (
+                <p className="empty-state">Belum ada pemakaian provider dalam periode ini.</p>
+              ) : null}
+            </div>
+            <p className="muted">
+              Analytics hanya menyimpan status, penggunaan, latency, dan estimasi biaya; isi
+              pertanyaan serta identitas pelanggan tidak ditampilkan.
+            </p>
+          </section>
+        </>
+      ) : null}
     </Shell>
   );
 }

@@ -1,7 +1,8 @@
 'use client';
 
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useState } from 'react';
 
+import { AppIcon } from '../../components/app-icon';
 import { Shell } from '../../components/shell';
 import { api, ApiError } from '../../lib/api';
 
@@ -17,55 +18,98 @@ interface SafetyState {
 export default function SafetyPage() {
   const [state, setState] = useState<SafetyState | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const load = () => void api<SafetyState>('/safety/stats').then(({ data }) => setState(data));
-  useEffect(load, []);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setState((await api<SafetyState>('/safety/stats')).data);
+    } catch {
+      setError('Status pengiriman tidak dapat dimuat. Perbarui halaman untuk mencoba lagi.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    void load();
+  }, [load]);
   const mutate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const action = state?.sendingPaused ? 'resume' : 'pause';
+    if (!state || loading || busy) return;
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    const action = state.sendingPaused ? 'resume' : 'pause';
+    setBusy(true);
+    setError(null);
     try {
       await api(`/safety/${action}`, {
         method: 'POST',
-        body: JSON.stringify({ reason: form.get('reason'), expectedRevision: state?.revision ?? 0 })
+        body: JSON.stringify({ reason: form.get('reason'), expectedRevision: state.revision })
       });
       setNotice(action === 'pause' ? 'Pengiriman dijeda.' : 'Pengiriman dilanjutkan.');
-      event.currentTarget.reset();
-      load();
+      formElement.reset();
+      await load();
     } catch (error) {
-      setNotice(error instanceof ApiError ? error.message : 'Aksi gagal.');
+      setError(error instanceof ApiError ? error.message : 'Aksi gagal.');
+    } finally {
+      setBusy(false);
     }
   };
   return (
-    <Shell eyebrow="Guardrail" title="Keamanan">
+    <Shell eyebrow="Kontrol pengiriman" title="Keamanan">
+      {error ? (
+        <p className="error-summary" role="alert">
+          {error}
+        </p>
+      ) : null}
       <section className="split-grid">
         <article className="section-card">
-          <p className="eyebrow">Sending control</p>
-          <div className="safety-status">
-            <span className={`status-icon ${state?.sendingPaused ? 'danger' : 'safe'}`}>
-              {state?.sendingPaused ? 'Ⅱ' : '✓'}
+          <p className="eyebrow">Status pengiriman</p>
+          <div className="safety-status" aria-busy={loading}>
+            <span
+              className={`status-icon ${state ? (state.sendingPaused ? 'danger' : 'safe') : ''}`}
+            >
+              <AppIcon name={state && !state.sendingPaused ? 'readiness' : 'safety'} size={24} />
             </span>
             <div>
-              <h2>{state?.sendingPaused ? 'Pengiriman dijeda' : 'Pengiriman aktif'}</h2>
+              <h2>
+                {state
+                  ? state.sendingPaused
+                    ? 'Pengiriman dijeda'
+                    : 'Pengiriman aktif'
+                  : loading
+                    ? 'Memuat status pengiriman…'
+                    : 'Status belum tersedia'}
+              </h2>
               <p>
-                Risk level: <strong>{state?.riskLevel ?? '—'}</strong>
+                Tingkat risiko:{' '}
+                <strong>{state?.riskLevel.replaceAll('_', ' ') ?? 'Belum tersedia'}</strong>
               </p>
             </div>
           </div>
           <dl>
             <div>
               <dt>Alasan terakhir</dt>
-              <dd>{state?.reason ?? 'Belum ada perubahan'}</dd>
+              <dd>{state ? (state.reason ?? 'Belum ada perubahan') : 'Belum tersedia'}</dd>
             </div>
             <div>
-              <dt>Revision</dt>
-              <dd>{state?.revision ?? '—'}</dd>
+              <dt>Revisi</dt>
+              <dd>{state?.revision ?? 'Belum tersedia'}</dd>
             </div>
           </dl>
         </article>
         <article className="section-card">
           <p className="eyebrow">Aksi terkontrol</p>
-          <h2>{state?.sendingPaused ? 'Lanjutkan pengiriman' : 'Jeda pengiriman'}</h2>
-          <p>Alasan wajib diisi dan request memakai revision terbaru.</p>
+          <h2>
+            {state
+              ? state.sendingPaused
+                ? 'Lanjutkan pengiriman'
+                : 'Jeda pengiriman'
+              : 'Atur pengiriman'}
+          </h2>
+          <p>Isi alasan untuk mengubah status pengiriman.</p>
           {notice ? (
             <div className="notice" role="status">
               {notice}
@@ -79,8 +123,9 @@ export default function SafetyPage() {
             <button
               className={state?.sendingPaused ? 'primary-button' : 'danger-button'}
               type="submit"
+              disabled={!state || loading || busy}
             >
-              {state?.sendingPaused ? 'Lanjutkan' : 'Jeda sekarang'}
+              {busy ? 'Menyimpan…' : state?.sendingPaused ? 'Lanjutkan' : 'Jeda sekarang'}
             </button>
           </form>
         </article>

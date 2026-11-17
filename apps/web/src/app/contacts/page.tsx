@@ -79,8 +79,8 @@ export default function ContactsPage() {
         </section>
         <section className="section-card">
           <p className="eyebrow">Kontak baru</p>
-          <h2>Normalisasi nomor Indonesia</h2>
-          <p>Format 08…, 8…, +62…, dan 62… disimpan sebagai nomor canonical 62….</p>
+          <h2>Tambahkan kontak</h2>
+          <p>Gunakan nomor WhatsApp aktif. Format nomor lokal dan +62 dikenali secara otomatis.</p>
           <form onSubmit={(event) => void submit(event)}>
             <label>
               Nama tampilan

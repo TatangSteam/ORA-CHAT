@@ -20,24 +20,37 @@ export default function DocumentsPage() {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const load = useCallback(
-    async () => setDocuments((await api<DocumentItem[]>('/ai/documents')).data),
-    []
-  );
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      setDocuments((await api<DocumentItem[]>('/ai/documents')).data);
+    } catch {
+      setLoadError('Dokumen tidak dapat dimuat. Perbarui halaman untuk mencoba lagi.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
   useEffect(() => {
-    void load().catch(() => setNotice('Dokumen tidak dapat dimuat.'));
+    void load();
   }, [load]);
 
   const upload = async (event: FormEvent) => {
     event.preventDefault();
-    if (!file) return;
+    if (!file || uploading) return;
+    setUploading(true);
     try {
       await uploadDocument(file);
-      setNotice('Dokumen masuk quarantine dan worker queue.');
+      setNotice('Dokumen diunggah dan menunggu pemeriksaan.');
       setFile(null);
       await load();
     } catch (error) {
-      setNotice(error instanceof ApiError ? error.message : 'Upload gagal.');
+      setNotice(error instanceof ApiError ? error.message : 'Unggah dokumen gagal.');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -57,12 +70,13 @@ export default function DocumentsPage() {
   };
 
   return (
-    <Shell eyebrow="Private object pipeline" title="Dokumen knowledge">
+    <Shell eyebrow="Sumber jawaban AI" title="Dokumen knowledge">
       <section className="section-card">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Upload aman</p>
-            <h2>Quarantine → validasi → index</h2>
+            <p className="eyebrow">Unggah dokumen</p>
+            <h2>Tambahkan sumber jawaban</h2>
+            <p>Dokumen diperiksa sebelum tersedia sebagai sumber jawaban AI.</p>
           </div>
         </div>
         <form onSubmit={(event) => void upload(event)}>
@@ -75,27 +89,44 @@ export default function DocumentsPage() {
               required
             />
           </label>
-          <button className="primary-button" type="submit" disabled={!file}>
-            Upload melalui Express
+          <button className="primary-button" type="submit" disabled={!file || uploading}>
+            {uploading ? 'Mengunggah…' : 'Unggah dokumen'}
           </button>
         </form>
-        {notice ? <p className="notice">{notice}</p> : null}
+        {notice ? (
+          <p className="notice" role="status">
+            {notice}
+          </p>
+        ) : null}
       </section>
       <section className="section-card">
-        <p className="eyebrow">Lifecycle</p>
+        <p className="eyebrow">Daftar dokumen</p>
         <h2>Dokumen privat</h2>
-        <div className="stack-list">
+        {loadError ? (
+          <p className="error-summary" role="alert">
+            {loadError}
+          </p>
+        ) : null}
+        <div className="stack-list" aria-busy={loading}>
+          {loading && documents.length === 0 ? (
+            <p className="empty-state" role="status">
+              Memuat dokumen…
+            </p>
+          ) : null}
+          {!loading && !loadError && documents.length === 0 ? (
+            <p className="empty-state">Belum ada dokumen. Unggah sumber jawaban pertama Anda.</p>
+          ) : null}
           {documents.map((document) => (
             <article className="list-row" key={document.id}>
               <div>
                 <strong>{document.originalFilename}</strong>
                 <small>
-                  {(document.byteSize / 1024).toFixed(1)} KiB · retry {document.retryCount}
+                  {(document.byteSize / 1024).toFixed(1)} KiB · {document.retryCount} kali diulang
                 </small>
                 {document.failureCode ? <p>{document.failureCode}</p> : null}
               </div>
               <div className="action-row">
-                <span className="state-badge">{document.state}</span>
+                <span className="state-badge">{document.state.replaceAll('_', ' ')}</span>
                 <a
                   className="secondary-button"
                   href={`/api/admin/v1/ai/documents/${document.id}/download`}
@@ -107,7 +138,7 @@ export default function DocumentsPage() {
                     className="secondary-button"
                     onClick={() => void mutate(document, 'retry')}
                   >
-                    Retry
+                    Coba lagi
                   </button>
                 ) : null}
                 {document.state !== 'archived' ? (
@@ -115,7 +146,7 @@ export default function DocumentsPage() {
                     className="danger-button"
                     onClick={() => void mutate(document, 'archive')}
                   >
-                    Archive
+                    Arsipkan
                   </button>
                 ) : null}
               </div>

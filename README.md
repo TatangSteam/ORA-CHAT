@@ -50,10 +50,20 @@ corepack pnpm db:bootstrap
 corepack pnpm db:seed:knowledge
 ```
 
-`db:seed:knowledge` mengisi tenant `default` secara idempotent dengan knowledge RAHO yang
-dikurasi: 9 kategori, 78 item, 80 versi, dan 131 variasi pertanyaan. Perintah aman dijalankan
-ulang karena menggunakan upsert. Seed tidak membawa kontak, percakapan, kredensial, dokumen
+`db:seed:knowledge` mengisi tenant `default` secara idempotent dengan FAQ default dari
+`packages/db/knowledge/default-faq.csv`: 29 kategori, 38 item, 38 versi, dan 167 pertanyaan
+(pertanyaan utama beserta variasinya). Jawaban dan kategori mengikuti CSV yang diberikan;
+kolom status kosong diperlakukan sebagai `published`. Kata kunci dan tanggal sumber tetap
+tersimpan dalam CSV; kolom tanggal yang kosong tidak dianggap sebagai tanggal persetujuan.
+Perintah aman dijalankan ulang karena menggunakan ID stabil dan upsert. Seed tidak membawa kontak, percakapan, kredensial, dokumen
 binary, maupun embedding; dokumen perlu diunggah dan diindeks ulang melalui dashboard VPS.
+
+Jika CSV default diubah, jalankan `corepack pnpm db:seed:knowledge:build` dan
+`corepack pnpm test:knowledge-seed`, kemudian build ulang image API sebelum menjalankan
+`corepack pnpm db:seed:knowledge`. Mengubah CSV atau JSON di repo saja tidak memperbarui database
+yang sudah berjalan. Seed tidak menghapus knowledge lama atau knowledge buatan admin;
+untuk database yang sudah berisi seed sebelumnya, tinjau dan arsipkan informasi lama yang
+bertentangan melalui halaman Knowledge.
 
 Layanan lokal:
 

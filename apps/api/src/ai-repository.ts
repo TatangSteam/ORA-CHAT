@@ -9,6 +9,9 @@ import {
   type AiHealthState,
   type AiIntegrationActivation,
   type AiIntegrationDeactivate,
+  type AiModelCandidateApply,
+  type AiModelCandidateTest,
+  type AiModelDiscovery,
   type AiProviderConnectionCreate,
   type AiProviderConnectionUpdate,
   type AiPurpose
@@ -69,7 +72,22 @@ export interface AiIntegrationView {
 
 export type AiMutationResult<T> =
   | { status: 'ok'; value: T }
+  | { status: 'provider_failure'; category: AiHealthState }
   | { status: 'not_found' | 'revision_conflict' | 'not_ready' | 'reindex_required' };
+
+export interface AiModelCandidateTestResult {
+  modelId: string;
+  healthState: 'ready';
+  latencyMs: number;
+  actualModel: string;
+  providerRequestId: string | null;
+}
+
+export interface AiModelCandidateApplyResult {
+  connection: AiConnectionView;
+  integration: AiIntegrationView;
+  test: AiModelCandidateTestResult;
+}
 
 export interface AiConnectionTestResult {
   connection: AiConnectionView;
@@ -121,6 +139,19 @@ export interface AiRepository {
     requestId: string
   ): Promise<AiMutationResult<AiConnectionTestResult>>;
   listModels(tenantId: string, connectionId: string): Promise<AiMutationResult<string[]>>;
+  discoverModels(tenantId: string, input: AiModelDiscovery): Promise<AiMutationResult<string[]>>;
+  testModelCandidate(
+    tenantId: string,
+    connectionId: string,
+    input: AiModelCandidateTest
+  ): Promise<AiMutationResult<AiModelCandidateTestResult>>;
+  applyModelCandidate(
+    tenantId: string,
+    actorUserId: string,
+    connectionId: string,
+    input: AiModelCandidateApply,
+    requestId: string
+  ): Promise<AiMutationResult<AiModelCandidateApplyResult>>;
   activate(
     tenantId: string,
     actorUserId: string,
@@ -727,6 +758,183 @@ export class PrismaAiRepository implements AiRepository {
       };
     } catch {
       return { status: 'not_ready' };
+    }
+  }
+
+  public async discoverModels(
+    tenantId: string,
+    input: AiModelDiscovery
+  ): Promise<AiMutationResult<string[]>> {
+    try {
+      let runtime: ProviderConnectionRuntime;
+      if ('connectionId' in input) {
+        const connection = await this.prisma.aiProviderConnection.findFirst({
+          where: { id: input.connectionId, tenantId },
+          include: connectionInclude
+        });
+        if (!connection) return { status: 'not_found' };
+        runtime = this.runtime(connection);
+      } else {
+        runtime = {
+          id: 'draft-discovery',
+          tenantId,
+          purpose: input.purpose,
+          provider: input.provider,
+          baseUrl: input.baseUrl ?? null,
+          modelId: 'mock-safe',
+          dimensions: null,
+          taskType: null,
+          timeoutMs: input.timeoutMs,
+          maxRetries: 0,
+          maxOutputTokens: 64,
+          generationConfig: {},
+          credential: input.credential ?? null
+        };
+      }
+      const models = await new AiProviderAdapter(runtime, this.transport).listModels();
+      return { status: 'ok', value: [...new Set(models)].sort() };
+    } catch (error) {
+      return this.providerFailure(error);
+    }
+  }
+
+  private providerFailure(error: unknown): { status: 'provider_failure'; category: AiHealthState } {
+    return {
+      status: 'provider_failure',
+      category: error instanceof ProviderFailure ? error.category : 'unavailable'
+    };
+  }
+
+  private async probeModel(connection: ConnectionRecord, modelId: string) {
+    const runtime = this.runtime(connection);
+    const candidate = {
+      ...runtime,
+      modelId,
+      maxRetries: 0
+    };
+    // A different model must not inherit the previous model's capability snapshot.
+    if (modelId !== connection.modelId) delete candidate.capabilitySnapshot;
+    const adapter = new AiProviderAdapter(candidate, this.transport);
+    const started = performance.now();
+    // Generation is the compatibility check. Model listing may be unavailable or incomplete.
+    const result = await adapter.generateStructured('Return a safe JSON health response only.');
+    return {
+      test: {
+        modelId,
+        healthState: 'ready' as const,
+        latencyMs: Math.max(0, Math.round(performance.now() - started)),
+        actualModel: result.actualModel,
+        providerRequestId: result.providerRequestId
+      },
+      capabilities: adapter.capabilities()
+    };
+  }
+
+  public async testModelCandidate(
+    tenantId: string,
+    connectionId: string,
+    input: AiModelCandidateTest
+  ): Promise<AiMutationResult<AiModelCandidateTestResult>> {
+    const connection = await this.prisma.aiProviderConnection.findFirst({
+      where: { id: connectionId, tenantId },
+      include: connectionInclude
+    });
+    if (!connection) return { status: 'not_found' };
+    if (connection.revision !== input.expectedRevision) return { status: 'revision_conflict' };
+    if (connection.purpose !== 'chat') return { status: 'not_ready' };
+    try {
+      const result = await this.probeModel(connection, input.modelId);
+      const unchanged = await this.prisma.aiProviderConnection.findFirst({
+        where: { id: connectionId, tenantId, revision: input.expectedRevision },
+        select: { id: true }
+      });
+      return unchanged ? { status: 'ok', value: result.test } : { status: 'revision_conflict' };
+    } catch (error) {
+      return this.providerFailure(error);
+    }
+  }
+
+  public async applyModelCandidate(
+    tenantId: string,
+    actorUserId: string,
+    connectionId: string,
+    input: AiModelCandidateApply,
+    requestId: string
+  ): Promise<AiMutationResult<AiModelCandidateApplyResult>> {
+    const connection = await this.prisma.aiProviderConnection.findFirst({
+      where: { id: connectionId, tenantId },
+      include: connectionInclude
+    });
+    if (!connection) return { status: 'not_found' };
+    if (connection.revision !== input.expectedRevision) return { status: 'revision_conflict' };
+    if (connection.purpose !== 'chat') return { status: 'not_ready' };
+    const integration = await this.ensureIntegration(tenantId);
+    if (integration.revision !== input.expectedIntegrationRevision) {
+      return { status: 'revision_conflict' };
+    }
+    let probe: Awaited<ReturnType<PrismaAiRepository['probeModel']>>;
+    try {
+      probe = await this.probeModel(connection, input.modelId);
+    } catch (error) {
+      return this.providerFailure(error);
+    }
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const changedConnection = await tx.aiProviderConnection.updateMany({
+          where: { id: connectionId, tenantId, revision: input.expectedRevision },
+          data: {
+            modelId: input.modelId,
+            healthState: 'ready',
+            lastTestErrorCode: null,
+            lastTestedAt: this.now(),
+            testedRevision: input.expectedRevision + 1,
+            capabilitySnapshot: probe.capabilities as Prisma.InputJsonValue,
+            revision: { increment: 1 }
+          }
+        });
+        if (changedConnection.count !== 1) throw new RevisionConflict();
+        const changedIntegration = await tx.aiIntegration.updateMany({
+          where: { id: integration.id, tenantId, revision: input.expectedIntegrationRevision },
+          data: {
+            activeChatConnectionId: connectionId,
+            generationEnabled: true,
+            status: 'active',
+            revision: { increment: 1 }
+          }
+        });
+        // Throwing rolls back the connection update if the integration changed during the probe.
+        if (changedIntegration.count !== 1) throw new RevisionConflict();
+        await tx.auditLog.create({
+          data: audit(
+            tenantId,
+            actorUserId,
+            'ai.chat.model_applied',
+            'AiProviderConnection',
+            connectionId,
+            input.reason,
+            requestId,
+            { previousModelId: connection.modelId, modelId: input.modelId }
+          )
+        });
+        const updatedConnection = await tx.aiProviderConnection.findUniqueOrThrow({
+          where: { id: connectionId },
+          include: connectionInclude
+        });
+        const updatedIntegration = await tx.aiIntegration.findUniqueOrThrow({
+          where: { id: integration.id }
+        });
+        return {
+          status: 'ok' as const,
+          value: {
+            connection: connectionView(updatedConnection),
+            integration: integrationView(updatedIntegration),
+            test: probe.test
+          }
+        };
+      });
+    } catch (error) {
+      if (error instanceof RevisionConflict) return { status: 'revision_conflict' };
+      throw error;
     }
   }
 

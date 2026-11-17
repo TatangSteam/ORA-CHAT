@@ -50,16 +50,19 @@ export default function AgentsPage() {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [knowledge, setKnowledge] = useState<KnowledgeItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const permissions = user?.permissions ?? [];
   const has = (permission: string) => permissions.includes(permission);
 
   const load = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
     setError(null);
     try {
-      const tasks: Promise<void>[] = [
-        api<RuleConfig | null>('/chatbot/config').then(({ data }) => setRules(data))
-      ];
-      if (has('ai.settings.manage'))
+      const tasks: Promise<void>[] = [];
+      if (user.permissions.includes('chatbot.read'))
+        tasks.push(api<RuleConfig | null>('/chatbot/config').then(({ data }) => setRules(data)));
+      if (user.permissions.includes('ai.settings.manage'))
         tasks.push(
           Promise.all([
             api<Integration>('/ai/integration'),
@@ -69,15 +72,17 @@ export default function AgentsPage() {
             setConnections(connectionResult.data);
           })
         );
-      if (has('knowledge.read'))
+      if (user.permissions.includes('knowledge.read'))
         tasks.push(
           api<KnowledgeItem[]>('/ai/knowledge?limit=100').then(({ data }) => setKnowledge(data))
         );
       await Promise.all(tasks);
     } catch {
       setError('Ringkasan agent tidak dapat dimuat. Perbarui halaman untuk mencoba lagi.');
+    } finally {
+      setLoading(false);
     }
-  }, [permissions]);
+  }, [user]);
 
   useEffect(() => {
     void load();
@@ -92,19 +97,24 @@ export default function AgentsPage() {
     [connections, integration]
   );
   const publishedKnowledge = knowledge?.filter(({ status }) => status === 'published').length;
-  const readiness = !rules
-    ? 'Belum dikonfigurasi'
-    : rules.status === 'published' && activeChat && activeChat.healthState === 'ready'
-      ? 'Siap beroperasi'
-      : 'Perlu ditinjau';
+  const pendingLabel = loading ? 'Memuat…' : error ? 'Belum tersedia' : null;
+  const readiness = loading
+    ? 'Memuat status…'
+    : error || !has('chatbot.read')
+      ? 'Status belum tersedia'
+      : !rules
+        ? 'Belum dikonfigurasi'
+        : rules.status === 'published' && activeChat && activeChat.healthState === 'ready'
+          ? 'Siap beroperasi'
+          : 'Perlu ditinjau';
 
   return (
-    <Shell eyebrow="Agent control" title="Agent Management">
+    <Shell eyebrow="Pengaturan asisten" title="Manajemen agent">
       <section className="hero-row agent-hero">
         <div>
           <p className="eyebrow">Satu agent WhatsApp aktif</p>
           <h2>Asisten operasional tenant</h2>
-          <p>Ringkasan rule, AI, safety, dan knowledge dari konfigurasi yang telah ada.</p>
+          <p>Ringkasan aturan, AI, keamanan, dan sumber jawaban yang digunakan.</p>
         </div>
         <span className={`state-badge ${readiness === 'Siap beroperasi' ? 'healthy' : ''}`}>
           {readiness}
@@ -115,90 +125,117 @@ export default function AgentsPage() {
           {error}
         </p>
       ) : null}
-      <section className="agent-summary-grid" aria-label="Status agent">
+      <section className="agent-summary-grid" aria-label="Status agent" aria-busy={loading}>
         <article className="agent-summary-card">
-          <span>Rule runtime</span>
+          <span>Aturan chatbot</span>
           <strong>
-            {rules ? `v${rules.version} · ${formatStatus(rules.status)}` : 'Belum tersedia'}
+            {pendingLabel ??
+              (rules
+                ? `v${rules.version} · ${formatStatus(rules.status)}`
+                : has('chatbot.read')
+                  ? 'Belum tersedia'
+                  : 'Tidak diizinkan')}
           </strong>
           <small>
-            {rules
-              ? `${rules.rules.length} rule · revisi ${rules.revision}`
-              : 'Atur rule deterministic terlebih dahulu.'}
+            {pendingLabel
+              ? 'Menunggu ringkasan aturan chatbot.'
+              : rules
+                ? `${rules.rules.length} rule · revisi ${rules.revision}`
+                : 'Tambahkan aturan chatbot terlebih dahulu.'}
           </small>
-          {has('chatbot.read') ? <Link href="/chatbot">Kelola rule →</Link> : null}
+          {has('chatbot.read') ? <Link href="/chatbot">Kelola aturan</Link> : null}
         </article>
         <article className="agent-summary-card">
           <span>AI chat</span>
           <strong>
-            {activeChat ? activeChat.name : integration ? 'Belum aktif' : 'Tidak diizinkan'}
+            {pendingLabel ??
+              (activeChat
+                ? activeChat.name
+                : integration
+                  ? 'Belum aktif'
+                  : has('ai.settings.manage')
+                    ? 'Belum tersedia'
+                    : 'Tidak diizinkan')}
           </strong>
           <small>
-            {activeChat
-              ? `${activeChat.provider} · ${activeChat.modelId} · ${formatStatus(activeChat.healthState)}`
-              : 'Provider chat harus aktif dan diuji.'}
+            {pendingLabel
+              ? 'Menunggu status koneksi AI.'
+              : activeChat
+                ? `${activeChat.provider} · ${activeChat.modelId} · ${formatStatus(activeChat.healthState)}`
+                : 'Provider chat harus aktif dan diuji.'}
           </small>
-          {has('ai.settings.manage') ? <Link href="/ai-settings">Kelola provider →</Link> : null}
+          {has('ai.settings.manage') ? <Link href="/ai-settings">Kelola provider</Link> : null}
         </article>
         <article className="agent-summary-card">
           <span>Knowledge</span>
           <strong>
-            {publishedKnowledge === undefined
-              ? has('knowledge.read')
-                ? 'Memuat…'
-                : 'Tidak diizinkan'
-              : `${publishedKnowledge} terbit`}
+            {pendingLabel ??
+              (publishedKnowledge === undefined
+                ? has('knowledge.read')
+                  ? 'Memuat…'
+                  : 'Tidak diizinkan'
+                : `${publishedKnowledge} terbit`)}
           </strong>
           <small>
-            {activeEmbedding
-              ? `Embedding: ${activeEmbedding.name}`
-              : integration
-                ? 'Retrieval belum aktif.'
-                : 'Akses knowledge diperlukan untuk detail.'}
+            {pendingLabel
+              ? 'Menunggu status sumber jawaban.'
+              : activeEmbedding
+                ? `Embedding: ${activeEmbedding.name}`
+                : integration
+                  ? 'Retrieval belum aktif.'
+                  : 'Akses knowledge diperlukan untuk detail.'}
           </small>
-          {has('knowledge.read') ? <Link href="/knowledge">Kelola knowledge →</Link> : null}
+          {has('knowledge.read') ? <Link href="/knowledge">Kelola knowledge</Link> : null}
         </article>
         <article className="agent-summary-card">
-          <span>Safety & pengujian</span>
+          <span>Keamanan dan pengujian</span>
           <strong>Diatur terpisah</strong>
-          <small>Publish rule bersifat atomic. Playground tidak mengirim WhatsApp.</small>
+          <small>
+            Aturan yang dipublikasikan berlaku bersamaan. Uji AI tidak mengirim WhatsApp.
+          </small>
           <span className="agent-link-row">
-            {has('safety.read') ? <Link href="/safety">Keamanan →</Link> : null}
-            {has('knowledge.read') ? <Link href="/ai-search">Uji AI →</Link> : null}
+            {has('safety.read') ? <Link href="/safety">Keamanan</Link> : null}
+            {has('knowledge.read') ? <Link href="/ai-search">Uji AI</Link> : null}
           </span>
         </article>
       </section>
       <section className="section-card agent-runtime-card">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Runtime snapshot</p>
+            <p className="eyebrow">Konfigurasi saat ini</p>
             <h2>Komposisi agent aktif</h2>
           </div>
-          <small>Read-only view</small>
+          <small>Hanya lihat</small>
         </div>
         <div className="agent-runtime-list">
           <article>
             <strong>1. Perilaku deterministik</strong>
             <span>
-              {rules
-                ? `Rule v${rules.version} ${formatStatus(rules.status)} dipakai sesuai snapshot runtime.`
-                : 'Belum ada konfigurasi rule yang dapat dipakai.'}
+              {pendingLabel
+                ? 'Status aturan belum tersedia.'
+                : rules
+                  ? `Rule v${rules.version} ${formatStatus(rules.status)} dipakai sesuai snapshot runtime.`
+                  : 'Belum ada konfigurasi rule yang dapat dipakai.'}
             </span>
           </article>
           <article>
             <strong>2. Generasi AI</strong>
             <span>
-              {activeChat
-                ? `${activeChat.name} menggunakan ${activeChat.modelId}; terakhir diuji ${dateLabel(activeChat.lastTestedAt)}.`
-                : 'Koneksi chat aktif belum tersedia atau belum dapat dilihat.'}
+              {pendingLabel
+                ? 'Status koneksi AI belum tersedia.'
+                : activeChat
+                  ? `${activeChat.name} menggunakan ${activeChat.modelId}; terakhir diuji ${dateLabel(activeChat.lastTestedAt)}.`
+                  : 'Koneksi chat aktif belum tersedia atau belum dapat dilihat.'}
             </span>
           </article>
           <article>
-            <strong>3. Grounding knowledge</strong>
+            <strong>3. Sumber jawaban</strong>
             <span>
-              {publishedKnowledge === undefined
-                ? 'Status knowledge belum tersedia untuk role ini.'
-                : `${publishedKnowledge} item knowledge berstatus published; retrieval ${integration?.retrievalEnabled ? 'diaktifkan' : 'belum aktif'}.`}
+              {pendingLabel
+                ? 'Status sumber jawaban belum tersedia.'
+                : publishedKnowledge === undefined
+                  ? 'Status knowledge belum tersedia untuk role ini.'
+                  : `${publishedKnowledge} item knowledge berstatus published; retrieval ${integration?.retrievalEnabled ? 'diaktifkan' : 'belum aktif'}.`}
             </span>
           </article>
           <article>

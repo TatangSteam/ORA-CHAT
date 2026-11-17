@@ -6,6 +6,9 @@ import qrCode from 'qrcode';
 import {
   aiAnalyticsQuerySchema,
   aiConnectionTestSchema,
+  aiModelCandidateApplySchema,
+  aiModelCandidateTestSchema,
+  aiModelDiscoverySchema,
   aiFeedbackSchema,
   aiReadinessDecisionSchema,
   aiReadinessEvaluateSchema,
@@ -86,7 +89,7 @@ import {
 } from '@raho/storage';
 import { PrismaAiRepository, type AiMutationResult, type AiRepository } from './ai-repository.js';
 import { PinnedSafeHttpTransport } from './ai-provider.js';
-import { LoginRateLimiter } from './rate-limit.js';
+import { AiProbeRateLimiter, LoginRateLimiter } from './rate-limit.js';
 import { serializeSseEvent, TenantEventHub } from './event-hub.js';
 import { shouldRunAiAutomation } from './inbound-routing.js';
 import { dependencyStatuses, type StorageProbe } from './operations.js';
@@ -237,6 +240,7 @@ export const createApp = (options: AppOptions = {}): Express => {
     options.internalToken ??
     (process.env.WHATSAPP_INTERNAL_TOKEN_FILE ? readInternalToken() : undefined);
   const limiter = new LoginRateLimiter(hashKey, () => now().getTime());
+  const aiProbeLimiter = new AiProbeRateLimiter(() => now().getTime());
   const eventHub = options.eventHub ?? new TenantEventHub();
   const sessionCookieName = cookieName(production);
   const app = express();
@@ -347,6 +351,22 @@ export const createApp = (options: AppOptions = {}): Express => {
     return next();
   };
 
+  const limitAiProbe = (request: Request, response: Response, next: NextFunction) => {
+    const session = requestContext(request).session!;
+    const allowance = aiProbeLimiter.consume(`${session.tenantId}:${session.userId}`);
+    if (!allowance.allowed) {
+      response.setHeader('Retry-After', String(allowance.retryAfterSeconds));
+      return failure(
+        request,
+        response,
+        429,
+        'RATE_LIMITED',
+        'Permintaan AI dibatasi. Coba lagi nanti.'
+      );
+    }
+    return next();
+  };
+
   const templateFailure = (request: Request, response: Response, error: unknown) => {
     const code = error instanceof Error ? error.message : '';
     if (code === 'TEMPLATE_NOT_FOUND' || code === 'TEMPLATE_VERSION_NOT_FOUND') {
@@ -434,6 +454,26 @@ export const createApp = (options: AppOptions = {}): Express => {
     response: Response,
     result: Exclude<AiMutationResult<T>, { status: 'ok' }>
   ) => {
+    if (result.status === 'provider_failure') {
+      const messages: Partial<Record<typeof result.category, string>> = {
+        unauthorized: 'API key tidak valid atau belum dikonfigurasi.',
+        forbidden: 'API key tidak memiliki akses ke layanan atau model ini.',
+        quota_exceeded: 'Kuota layanan AI telah habis.',
+        rate_limited: 'Layanan AI membatasi permintaan. Coba lagi nanti.',
+        model_not_found: 'Model tidak ditemukan oleh layanan AI.',
+        incompatible: 'Respons model tidak mendukung format jawaban yang diperlukan.',
+        timeout: 'Layanan AI melewati batas waktu.',
+        blocked_url: 'URL layanan AI tidak diizinkan.',
+        unavailable: 'Layanan AI sementara tidak tersedia.'
+      };
+      return failure(
+        request,
+        response,
+        422,
+        `AI_PROVIDER_${result.category.toUpperCase()}`,
+        messages[result.category] ?? 'Layanan AI tidak dapat digunakan.'
+      );
+    }
     if (result.status === 'not_found')
       return failure(request, response, 404, 'NOT_FOUND', 'Koneksi AI tidak ditemukan.');
     if (result.status === 'revision_conflict')
@@ -1097,6 +1137,78 @@ export const createApp = (options: AppOptions = {}): Express => {
           'Nama koneksi sudah digunakan.'
         );
       }
+    }
+  );
+
+  app.post(
+    '/api/admin/v1/ai/provider-connections/discover-models',
+    authenticate,
+    requireRoutePermission('POST', '/api/admin/v1/ai/provider-connections/discover-models'),
+    requireCsrf,
+    limitAiProbe,
+    async (request, response) => {
+      const parsed = aiModelDiscoverySchema.safeParse(request.body);
+      if (!parsed.success)
+        return failure(request, response, 400, 'INVALID_REQUEST', 'Penemuan model tidak valid.');
+      if (!aiRepository)
+        return failure(request, response, 503, 'AI_UNAVAILABLE', 'Konfigurasi AI belum tersedia.');
+      const result = await aiRepository.discoverModels(
+        requestContext(request).session!.tenantId,
+        parsed.data
+      );
+      return result.status === 'ok'
+        ? success(request, response, result.value)
+        : aiFailure(request, response, result);
+    }
+  );
+
+  app.post(
+    '/api/admin/v1/ai/provider-connections/:id/model-test',
+    authenticate,
+    requireRoutePermission('POST', '/api/admin/v1/ai/provider-connections/:id/model-test'),
+    requireCsrf,
+    limitAiProbe,
+    async (request, response) => {
+      const parsed = aiModelCandidateTestSchema.safeParse(request.body);
+      if (!parsed.success)
+        return failure(request, response, 400, 'INVALID_REQUEST', 'Uji model tidak valid.');
+      if (!aiRepository)
+        return failure(request, response, 503, 'AI_UNAVAILABLE', 'Konfigurasi AI belum tersedia.');
+      const result = await aiRepository.testModelCandidate(
+        requestContext(request).session!.tenantId,
+        routeId(request),
+        parsed.data
+      );
+      return result.status === 'ok'
+        ? success(request, response, result.value)
+        : aiFailure(request, response, result);
+    }
+  );
+
+  app.post(
+    '/api/admin/v1/ai/provider-connections/:id/model-apply',
+    authenticate,
+    requireRoutePermission('POST', '/api/admin/v1/ai/provider-connections/:id/model-apply'),
+    requirePermission('ai.settings.manage'),
+    requireCsrf,
+    limitAiProbe,
+    async (request, response) => {
+      const parsed = aiModelCandidateApplySchema.safeParse(request.body);
+      if (!parsed.success)
+        return failure(request, response, 400, 'INVALID_REQUEST', 'Pergantian model tidak valid.');
+      if (!aiRepository)
+        return failure(request, response, 503, 'AI_UNAVAILABLE', 'Konfigurasi AI belum tersedia.');
+      const session = requestContext(request).session!;
+      const result = await aiRepository.applyModelCandidate(
+        session.tenantId,
+        session.userId,
+        routeId(request),
+        parsed.data,
+        requestContext(request).meta.requestId
+      );
+      return result.status === 'ok'
+        ? success(request, response, result.value)
+        : aiFailure(request, response, result);
     }
   );
 

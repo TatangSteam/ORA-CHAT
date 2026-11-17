@@ -1,5 +1,28 @@
 import { keyedHash } from './security.js';
 
+export class AiProbeRateLimiter {
+  private readonly windows = new Map<string, { count: number; resetAt: number }>();
+
+  public constructor(private readonly now: () => number = Date.now) {}
+
+  public consume(key: string): { allowed: boolean; retryAfterSeconds: number } {
+    const current = this.now();
+    for (const [expiredKey, window] of this.windows) {
+      if (window.resetAt <= current) this.windows.delete(expiredKey);
+    }
+    const window = this.windows.get(key) ?? { count: 0, resetAt: current + 60_000 };
+    this.windows.set(key, window);
+    if (window.count >= 10) {
+      return {
+        allowed: false,
+        retryAfterSeconds: Math.max(1, Math.ceil((window.resetAt - current) / 1000))
+      };
+    }
+    window.count += 1;
+    return { allowed: true, retryAfterSeconds: 0 };
+  }
+}
+
 interface Attempt {
   failures: number;
   resetAt: number;

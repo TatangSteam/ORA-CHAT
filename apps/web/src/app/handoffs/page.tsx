@@ -52,7 +52,7 @@ export default function HandoffsPage() {
       <section className="section-card">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Human ownership</p>
+            <p className="eyebrow">Penanganan admin</p>
             <h2>Antrean bantuan</h2>
           </div>
           <span className="count-badge">

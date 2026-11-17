@@ -4,7 +4,7 @@ import { hashOpaqueValue, hashPassword } from '@raho/db';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { createApp } from './app.js';
-import type { AiConnectionView, AiRepository } from './ai-repository.js';
+import type { AiConnectionView, AiMutationResult, AiRepository } from './ai-repository.js';
 import { TenantEventHub } from './event-hub.js';
 import { SESSION_ABSOLUTE_MS } from './security.js';
 import type {
@@ -526,6 +526,15 @@ describe('admin authentication security contract', () => {
     });
     const createConnection = vi.fn(async () => safeConnection);
     const listModels = vi.fn(async () => ({ status: 'not_found' as const }));
+    const discoverModels = vi.fn(async (): Promise<AiMutationResult<string[]>> => ({
+      status: 'ok',
+      value: ['gateway-model']
+    }));
+    const testModelCandidate = vi.fn(async () => ({
+      status: 'provider_failure' as const,
+      category: 'quota_exceeded' as const
+    }));
+    const applyModelCandidate = vi.fn(async () => ({ status: 'revision_conflict' as const }));
     const aiRepository = {
       getIntegration: vi.fn(async () => ({
         id: safeConnection.id,
@@ -547,6 +556,9 @@ describe('admin authentication security contract', () => {
       deleteCredential: vi.fn(),
       testConnection: vi.fn(),
       listModels,
+      discoverModels,
+      testModelCandidate,
+      applyModelCandidate,
       activate: vi.fn(),
       deactivate: vi.fn()
     } as AiRepository;
@@ -633,6 +645,109 @@ describe('admin authentication security contract', () => {
       repository.identity.tenantId,
       '01988c36-6880-7000-8000-000000000099'
     );
+
+    const newActions = [
+      '/ai/provider-connections/discover-models',
+      `/ai/provider-connections/${safeConnection.id}/model-test`,
+      `/ai/provider-connections/${safeConnection.id}/model-apply`
+    ];
+    for (const action of newActions) {
+      const unauthenticated = await fetch(`${origin}/api/admin/v1${action}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}'
+      });
+      expect(unauthenticated.status).toBe(401);
+      const missingCsrf = await fetch(`${origin}/api/admin/v1${action}`, {
+        method: 'POST',
+        headers: { cookie: sessionCookie, 'content-type': 'application/json' },
+        body: '{}'
+      });
+      expect(missingCsrf.status).toBe(403);
+    }
+    expect(discoverModels).not.toHaveBeenCalled();
+    expect(testModelCandidate).not.toHaveBeenCalled();
+    expect(applyModelCandidate).not.toHaveBeenCalled();
+    const postAi = (path: string, body: unknown) =>
+      fetch(`${origin}/api/admin/v1${path}`, {
+        method: 'POST',
+        headers: {
+          cookie: sessionCookie,
+          'content-type': 'application/json',
+          'x-csrf-token': loginBody.data.csrfToken
+        },
+        body: JSON.stringify(body)
+      });
+    const draft = {
+      provider: 'openai-compatible',
+      transport: 'compatible',
+      purpose: 'chat',
+      baseUrl: 'https://gateway.example/v1',
+      credential: 'synthetic-draft-key'
+    };
+    const discovery = await postAi(newActions[0]!, draft);
+    expect(discovery.status).toBe(200);
+    expect(await discovery.json()).toMatchObject({ data: ['gateway-model'] });
+    expect(discoverModels).toHaveBeenCalledWith(repository.identity.tenantId, {
+      ...draft,
+      timeoutMs: 15_000
+    });
+    const savedDiscovery = await postAi(newActions[0]!, { connectionId: safeConnection.id });
+    expect(savedDiscovery.status).toBe(200);
+    expect(discoverModels).toHaveBeenLastCalledWith(repository.identity.tenantId, {
+      connectionId: safeConnection.id
+    });
+    discoverModels.mockResolvedValueOnce({ status: 'not_found' });
+    const foreignDiscovery = await postAi(newActions[0]!, {
+      connectionId: '01988c36-6880-7000-8000-000000000099'
+    });
+    expect(foreignDiscovery.status).toBe(404);
+    expect(discoverModels).toHaveBeenLastCalledWith(repository.identity.tenantId, {
+      connectionId: '01988c36-6880-7000-8000-000000000099'
+    });
+    const mixedCredential = await postAi(newActions[0]!, {
+      ...draft,
+      connectionId: safeConnection.id
+    });
+    expect(mixedCredential.status).toBe(400);
+    const modelCandidate = {
+      modelId: 'gateway-model',
+      expectedRevision: 0,
+      reason: 'Test candidate model'
+    };
+    const probe = await postAi(newActions[1]!, modelCandidate);
+    expect(probe.status).toBe(422);
+    expect(await probe.json()).toMatchObject({ error: { code: 'AI_PROVIDER_QUOTA_EXCEEDED' } });
+    expect(testModelCandidate).toHaveBeenCalledWith(
+      repository.identity.tenantId,
+      safeConnection.id,
+      modelCandidate
+    );
+    const applyCandidate = { ...modelCandidate, expectedIntegrationRevision: 0 };
+    const applied = await postAi(newActions[2]!, applyCandidate);
+    expect(applied.status).toBe(409);
+    expect(await applied.json()).toMatchObject({ error: { code: 'REVISION_CONFLICT' } });
+    expect(applyModelCandidate).toHaveBeenCalledWith(
+      repository.identity.tenantId,
+      repository.identity.userId,
+      safeConnection.id,
+      applyCandidate,
+      expect.any(String)
+    );
+    for (const permission of ['ai.activate', 'ai.settings.manage'] as const) {
+      for (const session of repository.sessions.values())
+        session.permissionOverrides = { grant: [], deny: [permission] };
+      const denied = await postAi(newActions[2]!, applyCandidate);
+      expect(denied.status).toBe(403);
+    }
+    for (const session of repository.sessions.values())
+      session.permissionOverrides = { grant: [], deny: [] };
+    for (let request = 0; request < 4; request += 1)
+      expect((await postAi(newActions[0]!, { connectionId: safeConnection.id })).status).toBe(200);
+    const limited = await postAi(newActions[1]!, modelCandidate);
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get('retry-after')).toBe('60');
+    expect(testModelCandidate).toHaveBeenCalledOnce();
   });
 
   it('isolates QR and Last-Event-ID replay by authenticated tenant', async () => {

@@ -18,6 +18,8 @@
     "db:bootstrap": "docker compose --env-file .env.example exec -T -w /app/packages/db api /nodejs/bin/node dist/bootstrap.js",
     "db:migrate": "docker compose --env-file .env.example exec -T -w /app/packages/db api /nodejs/bin/node node_modules/prisma/build/index.js migrate deploy",
     "db:seed:knowledge": "docker compose --env-file .env.example exec -T -w /app/packages/db api /nodejs/bin/node dist/knowledge-seed.js",
+    "db:seed:knowledge:build": "node scripts/build-knowledge-seed.mjs",
+    "test:knowledge-seed": "node --test scripts/build-knowledge-seed.test.mjs",
     "db:validate": "corepack pnpm --filter @raho/db prisma:validate",
     "dependency:audit": "corepack pnpm audit --audit-level=high",
     "format": "prettier --write --no-error-on-unmatched-pattern \"apps/**/*.{ts,tsx,css,json}\" \"packages/**/*.{ts,tsx,json}\" \"scripts/**/*.{js,mjs,ts,json}\" \"tests/**/*.{ts,tsx,json}\" \".github/**/*.{yml,yaml}\" \"*.{json,mjs,ts,yaml,yml}\"",

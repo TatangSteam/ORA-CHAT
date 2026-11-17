@@ -1,14 +1,12 @@
 'use client';
 
-import { type FormEvent, useCallback, useEffect, useState } from 'react';
-
+import { useCallback, useEffect, useId, useState } from 'react';
 import { Shell } from '../../components/shell';
 import { api, ApiError } from '../../lib/api';
 
 type Purpose = 'chat' | 'embedding';
 type Provider =
   'mock' | 'openai' | 'anthropic' | 'gemini' | 'openai-compatible' | 'openclaw-gateway';
-
 interface Integration {
   activeChatConnectionId: string | null;
   activeEmbeddingConnectionId: string | null;
@@ -17,7 +15,6 @@ interface Integration {
   status: string;
   revision: number;
 }
-
 interface Connection {
   id: string;
   name: string;
@@ -39,466 +36,964 @@ interface Connection {
   credentialConfigured: boolean;
   credentialRotatedAt: string | null;
 }
+interface Probe {
+  modelId: string;
+  healthState: string;
+  latencyMs: number;
+  actualModel: string;
+}
+const providers: { value: Provider; label: string }[] = [
+  { value: 'openai-compatible', label: 'OpenAI-compatible' },
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'anthropic', label: 'Anthropic' },
+  { value: 'gemini', label: 'Google Gemini' },
+  { value: 'openclaw-gateway', label: 'OpenClaw gateway' },
+  { value: 'mock', label: 'Mock (pengujian lokal)' }
+];
+const transportFor = (p: Provider) =>
+  p === 'openai-compatible' ? 'compatible' : p === 'openclaw-gateway' ? 'gateway' : 'native';
+const friendlyError = (error: unknown) => {
+  if (!(error instanceof ApiError))
+    return 'Permintaan belum berhasil. Periksa koneksi lalu coba lagi.';
+  const messages: Record<string, string> = {
+    AI_PROVIDER_UNAUTHORIZED: 'API key ditolak. Periksa key atau gunakan key baru.',
+    AI_PROVIDER_FORBIDDEN: 'Key ini tidak memiliki izin untuk mengakses layanan tersebut.',
+    AI_PROVIDER_RATE_LIMITED: 'Batas permintaan tercapai. Tunggu sebentar lalu coba lagi.',
+    AI_PROVIDER_QUOTA_EXCEEDED: 'Kuota provider habis. Periksa saldo atau batas penggunaan akun.',
+    AI_PROVIDER_MODEL_NOT_FOUND:
+      'Model ini tidak tersedia untuk koneksi Anda. Perbarui daftar model.',
+    AI_PROVIDER_INCOMPATIBLE: 'Respons model belum sesuai format yang dibutuhkan chatbot.',
+    AI_PROVIDER_TIMEOUT:
+      'Provider belum merespons dalam batas waktu. Coba lagi atau tambah timeout.',
+    AI_PROVIDER_BLOCKED_URL: 'Endpoint tidak diizinkan. Gunakan URL HTTPS provider yang valid.',
+    AI_PROVIDER_UNAVAILABLE: 'Provider sedang tidak tersedia. Coba lagi beberapa saat lagi.',
+    REVISION_CONFLICT: 'Konfigurasi berubah di sesi lain. Muat ulang halaman sebelum melanjutkan.'
+  };
+  return messages[error.code] ?? error.message;
+};
+const dateLabel = (value: string | null) =>
+  value
+    ? new Date(value).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
+    : 'Belum diuji';
+const Icon = ({ kind = 'spark' }: { kind?: 'spark' | 'key' | 'check' | 'arrow' }) => (
+  <svg
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.7"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    {kind === 'key' ? (
+      <>
+        <circle cx="8" cy="8" r="4" />
+        <path d="m11 11 9 9m-3-3 3-3m-6 0 3-3" />
+      </>
+    ) : kind === 'check' ? (
+      <path d="m5 12 4 4L19 6" />
+    ) : kind === 'arrow' ? (
+      <path d="M5 12h14m-5-5 5 5-5 5" />
+    ) : (
+      <>
+        <path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z" />
+        <path d="m20 3 .5 1.5L22 5l-1.5.5L20 7l-.5-1.5L18 5l1.5-.5L20 3Z" />
+      </>
+    )}
+  </svg>
+);
 
-const transportFor = (provider: Provider) =>
-  provider === 'openai-compatible'
-    ? 'compatible'
-    : provider === 'openclaw-gateway'
-      ? 'gateway'
-      : 'native';
-
-const ConnectionCard = ({
+function ConnectionEditor({
   connection,
-  active,
-  integrationRevision,
-  refresh
+  purpose,
+  integration,
+  onSaved,
+  onRefresh
 }: {
-  connection: Connection;
-  active: boolean;
-  integrationRevision: number;
-  refresh: () => Promise<void>;
-}) => {
-  const [modelId, setModelId] = useState(connection.modelId);
-  const [baseUrl, setBaseUrl] = useState(connection.baseUrl ?? '');
-  const [dimensions, setDimensions] = useState(String(connection.dimensions ?? ''));
+  connection: Connection | null;
+  purpose: Purpose;
+  integration: Integration | null;
+  onSaved: (id: string) => Promise<void>;
+  onRefresh: () => Promise<void>;
+}) {
+  const id = useId();
+  const [name, setName] = useState(
+    connection?.name ?? (purpose === 'chat' ? 'Yoga AI' : 'Embedding knowledge')
+  );
+  const [provider, setProvider] = useState<Provider>(connection?.provider ?? 'openai-compatible');
+  const [baseUrl, setBaseUrl] = useState(connection?.baseUrl ?? 'https://ai.yogathedev.com/v1');
   const [secret, setSecret] = useState('');
-  const [reason, setReason] = useState('Perubahan konfigurasi provider telah ditinjau');
+  const [showSecret, setShowSecret] = useState(false);
+  const [editKey, setEditKey] = useState(false);
   const [models, setModels] = useState<string[]>([]);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const action = async (operation: () => Promise<unknown>, success: string) => {
-    setBusy(true);
+  const [search, setSearch] = useState('');
+  const [manual, setManual] = useState(false);
+  const [modelId, setModelId] = useState(connection?.modelId ?? '');
+  const [loadedAt, setLoadedAt] = useState<string | null>(null);
+  const [timeoutMs, setTimeoutMs] = useState(connection?.timeoutMs ?? 30000);
+  const [maxOutputTokens, setMaxOutputTokens] = useState(connection?.maxOutputTokens ?? 512);
+  const [dimensions, setDimensions] = useState(connection?.dimensions ?? 1536);
+  const [probe, setProbe] = useState<Probe | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null);
+  const isNew = !connection;
+  const hasEndpoint = ['openai-compatible', 'openclaw-gateway'].includes(provider);
+  const canDiscover = connection ? !editKey : provider === 'mock' || secret.trim().length >= 8;
+  const activeId =
+    purpose === 'chat'
+      ? integration?.activeChatConnectionId
+      : integration?.activeEmbeddingConnectionId;
+  const active = Boolean(connection && activeId === connection.id);
+  const embeddingReady =
+    purpose === 'embedding' &&
+    connection?.healthState === 'ready' &&
+    connection.testedRevision === connection.revision &&
+    modelId === connection.modelId;
+  const reason = 'Konfigurasi AI diperbarui melalui halaman Integrasi AI';
+  const modelOptions = [...new Set([...(modelId ? [modelId] : []), ...models])].sort((a, b) =>
+    a.localeCompare(b)
+  );
+  const visibleModels = modelOptions.filter(
+    (m) => m.toLowerCase().includes(search.toLowerCase()) || m === modelId
+  );
+  const updateModel = (value: string) => {
+    setModelId(value);
+    setProbe(null);
+    setNotice(null);
+  };
+  const resetDraft = () => {
+    setModels([]);
+    setLoadedAt(null);
+    setModelId('');
+    setProbe(null);
+    setNotice(null);
+  };
+  const run = async (label: string, task: () => Promise<void>) => {
+    if (busy) return;
+    setBusy(label);
     setNotice(null);
     try {
-      await operation();
-      setSecret('');
-      setNotice(success);
-      await refresh();
+      await task();
     } catch (error) {
-      setNotice(error instanceof ApiError ? error.message : 'Aksi gagal dijalankan.');
+      setNotice({ text: friendlyError(error), error: true });
+      setProbe(null);
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
-
-  const save = (event: FormEvent) => {
-    event.preventDefault();
-    return action(
-      () =>
-        api(`/ai/provider-connections/${connection.id}`, {
+  const discover = () =>
+    run('models', async () => {
+      const { data } = await api<string[]>('/ai/provider-connections/discover-models', {
+        method: 'POST',
+        body: JSON.stringify(
+          connection
+            ? { connectionId: connection.id }
+            : {
+                provider,
+                transport: transportFor(provider),
+                purpose,
+                baseUrl: hasEndpoint ? baseUrl.trim().replace(/\/+$/u, '') : null,
+                credential: secret.trim() || undefined,
+                timeoutMs
+              }
+        )
+      });
+      const unique = [...new Set(data)].sort((a, b) => a.localeCompare(b));
+      setModels(unique);
+      setLoadedAt(new Date().toISOString());
+      setSearch('');
+      if (!modelId && unique.length === 1) setModelId(unique[0]!);
+      setNotice({
+        text: unique.length
+          ? `${unique.length} model tersedia. Pilih model yang ingin digunakan.`
+          : 'Provider belum mengembalikan model. Anda dapat memasukkan ID model secara manual.',
+        error: false
+      });
+      if (!unique.length) setManual(true);
+    });
+  const configuration = () => ({
+    name: name.trim(),
+    purpose,
+    provider,
+    transport: transportFor(provider),
+    baseUrl: hasEndpoint ? baseUrl.trim().replace(/\/+$/u, '') : null,
+    modelId: modelId.trim(),
+    dimensions: purpose === 'embedding' ? dimensions : null,
+    taskType: purpose === 'embedding' ? 'RETRIEVAL_QUERY' : null,
+    timeoutMs,
+    maxRetries: 0,
+    maxOutputTokens,
+    generationConfig: connection?.generationConfig ?? {},
+    reason
+  });
+  const save = () =>
+    run('save', async () => {
+      const { data } = await api<Connection>('/ai/provider-connections', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...configuration(),
+          ...(secret.trim() ? { credential: secret.trim() } : {})
+        })
+      });
+      setSecret('');
+      await onSaved(data.id);
+    });
+  const test = () =>
+    run('test', async () => {
+      if (!connection) return;
+      if (purpose === 'chat') {
+        const { data } = await api<Probe>(`/ai/provider-connections/${connection.id}/model-test`, {
+          method: 'POST',
+          body: JSON.stringify({ modelId, expectedRevision: connection.revision, reason })
+        });
+        setProbe(data);
+        setNotice({ text: 'Model lolos uji respons chatbot. Siap digunakan.', error: false });
+      } else {
+        if (modelId !== connection.modelId)
+          throw new Error('Simpan model embedding terlebih dahulu.');
+        const { data } = await api<{ connection: Connection; test: Probe }>(
+          `/ai/provider-connections/${connection.id}/test`,
+          {
+            method: 'POST',
+            body: JSON.stringify({ expectedRevision: connection.revision, reason })
+          }
+        );
+        if (data.connection.healthState !== 'ready') {
+          setNotice({
+            text: `Uji embedding belum berhasil: ${data.connection.healthState.replaceAll('_', ' ')}.`,
+            error: true
+          });
+          return;
+        }
+        setProbe({ ...data.test, modelId });
+        await onRefresh();
+      }
+    });
+  const apply = () =>
+    run('apply', async () => {
+      if (!connection || !integration) return;
+      if (purpose === 'chat')
+        await api(`/ai/provider-connections/${connection.id}/model-apply`, {
           method: 'POST',
           body: JSON.stringify({
-            name: connection.name,
-            purpose: connection.purpose,
-            provider: connection.provider,
-            transport: connection.transport,
-            baseUrl: baseUrl || null,
             modelId,
-            dimensions: connection.purpose === 'embedding' ? Number(dimensions) : null,
-            taskType: connection.taskType,
-            timeoutMs: connection.timeoutMs,
-            maxRetries: connection.maxRetries,
-            maxOutputTokens: connection.maxOutputTokens,
-            generationConfig: connection.generationConfig,
             expectedRevision: connection.revision,
+            expectedIntegrationRevision: integration.revision,
             reason
           })
-        }),
-      'Konfigurasi disimpan. Uji ulang diperlukan sebelum aktivasi.'
-    );
-  };
+        });
+      else
+        await api('/ai/integration/activate', {
+          method: 'POST',
+          body: JSON.stringify({
+            purpose,
+            connectionId: connection.id,
+            expectedRevision: integration.revision,
+            reason
+          })
+        });
+      await onRefresh();
+      setProbe(null);
+      setNotice({
+        text: `${purpose === 'chat' ? 'Model chat' : 'Koneksi embedding'} berhasil diaktifkan.`,
+        error: false
+      });
+    });
 
   return (
-    <article className={`section-card provider-card ${active ? 'provider-active' : ''}`}>
-      <div className="section-heading">
+    <section className="ai-editor section-card" aria-label="Pengaturan koneksi AI">
+      <div className="ai-editor-heading">
         <div>
-          <p className="eyebrow">{connection.provider}</p>
-          <h3>{connection.name}</h3>
+          <p className="eyebrow">{isNew ? 'KONEKSI BARU' : 'PENGATURAN KONEKSI'}</p>
+          <h2>{isNew ? 'Tambahkan provider' : connection.name}</h2>
         </div>
-        <span className={`state-badge health-${connection.healthState}`}>
-          {active ? 'aktif' : connection.healthState.replaceAll('_', ' ')}
-        </span>
+        <span className="ai-purpose-label">{purpose === 'chat' ? 'Chat' : 'Embedding'}</span>
       </div>
-      <form onSubmit={(event) => void save(event)}>
-        {connection.baseUrl !== null ? (
-          <label>
-            Base URL
-            <input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} required />
+      <fieldset className="ai-fields" disabled={Boolean(busy)}>
+        <div className="ai-step-heading">
+          <div>
+            <h3>Koneksi API</h3>
+            {isNew && <p>Isi endpoint dan API key dari provider Anda.</p>}
+          </div>
+        </div>
+        {isNew ? (
+          <>
+            <div className="ai-form-two">
+              <label htmlFor={`${id}-name`}>
+                Nama koneksi
+                <input
+                  id={`${id}-name`}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  maxLength={160}
+                  readOnly={!isNew}
+                  placeholder="Contoh: Yoga AI"
+                />
+              </label>
+              <label htmlFor={`${id}-provider`}>
+                Provider
+                <select
+                  id={`${id}-provider`}
+                  value={provider}
+                  disabled={!isNew}
+                  onChange={(e) => {
+                    setProvider(e.target.value as Provider);
+                    resetDraft();
+                  }}
+                >
+                  {providers
+                    .filter((p) => purpose !== 'embedding' || p.value !== 'anthropic')
+                    .map((p) => (
+                      <option key={p.value} value={p.value}>
+                        {p.label}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            </div>
+            {hasEndpoint && (
+              <div className="ai-endpoint-field">
+                <label htmlFor={`${id}-url`}>Base URL</label>
+                <input
+                  id={`${id}-url`}
+                  aria-describedby={`${id}-url-help`}
+                  type="url"
+                  value={baseUrl}
+                  readOnly={!isNew}
+                  onChange={(e) => {
+                    setBaseUrl(e.target.value);
+                    resetDraft();
+                  }}
+                  placeholder="https://provider.example/v1"
+                  spellCheck={false}
+                />
+                <small id={`${id}-url-help`}>Gunakan endpoint API yang berakhir dengan /v1.</small>
+              </div>
+            )}
+          </>
+        ) : (
+          <dl className="ai-connection-details">
+            <div>
+              <dt>Provider</dt>
+              <dd>{providers.find((p) => p.value === provider)?.label}</dd>
+            </div>
+            <div>
+              <dt>Endpoint</dt>
+              <dd className="ai-endpoint-value">
+                {connection.baseUrl || 'Endpoint resmi provider'}
+              </dd>
+            </div>
+          </dl>
+        )}
+        {provider !== 'mock' && (
+          <div className="ai-key-area">
+            {isNew || editKey ? (
+              <>
+                <div className="ai-secret-field">
+                  <label htmlFor={`${id}-key`}>API key</label>
+                  <div className="ai-secret-input">
+                    <input
+                      id={`${id}-key`}
+                      aria-describedby={`${id}-key-help`}
+                      type={showSecret ? 'text' : 'password'}
+                      value={secret}
+                      onChange={(e) => {
+                        setSecret(e.target.value);
+                        setProbe(null);
+                        if (isNew) {
+                          setModels([]);
+                          setLoadedAt(null);
+                        }
+                      }}
+                      autoComplete="new-password"
+                      placeholder="Masukkan API key"
+                      spellCheck={false}
+                    />
+                    <button
+                      type="button"
+                      className="ai-text-button"
+                      aria-label={showSecret ? 'Sembunyikan API key' : 'Tampilkan API key'}
+                      aria-pressed={showSecret}
+                      onClick={() => setShowSecret(!showSecret)}
+                    >
+                      {showSecret ? 'Sembunyikan' : 'Tampilkan'}
+                    </button>
+                  </div>
+                </div>
+                <small id={`${id}-key-help`}>
+                  Key dikirim melalui server dan disimpan terenkripsi.
+                </small>
+                {editKey && (
+                  <>
+                    <p className="ai-inline-hint">
+                      Key baru perlu disimpan dan diuji ulang sebelum koneksi digunakan.
+                    </p>
+                    <div className="action-row">
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        disabled={secret.trim().length < 8}
+                        onClick={() =>
+                          void run('key', async () => {
+                            await api(`/ai/provider-connections/${connection!.id}/credential`, {
+                              method: 'POST',
+                              body: JSON.stringify({
+                                credential: secret.trim(),
+                                expectedRevision: connection!.revision,
+                                reason
+                              })
+                            });
+                            setSecret('');
+                            setEditKey(false);
+                            setProbe(null);
+                            await onRefresh();
+                            setNotice({
+                              text: 'API key diperbarui. Uji kembali sebelum mengaktifkan koneksi.',
+                              error: false
+                            });
+                          })
+                        }
+                      >
+                        Simpan API key baru
+                      </button>
+                      <button
+                        type="button"
+                        className="ai-text-button"
+                        onClick={() => {
+                          setSecret('');
+                          setEditKey(false);
+                        }}
+                      >
+                        Batal
+                      </button>
+                    </div>
+                  </>
+                )}
+              </>
+            ) : (
+              <div className="ai-key-saved">
+                <span className="ai-key-icon">
+                  <Icon kind="key" />
+                </span>
+                <div>
+                  <strong>
+                    {connection.credentialConfigured
+                      ? 'API key tersimpan'
+                      : 'API key belum tersedia'}
+                  </strong>
+                  <small>
+                    {connection.credentialConfigured
+                      ? `Terenkripsi${connection.credentialRotatedAt ? ` · diperbarui ${dateLabel(connection.credentialRotatedAt)}` : ''}`
+                      : 'Tambahkan key untuk menghubungkan provider.'}
+                  </small>
+                </div>
+                <button
+                  type="button"
+                  className="ai-text-button"
+                  onClick={() => {
+                    setEditKey(true);
+                    setProbe(null);
+                  }}
+                >
+                  Ganti API key
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+        <div className="ai-step-divider" />
+        <div className="ai-step-heading">
+          <div>
+            <h3>Model & konfigurasi</h3>
+            <p>
+              Pilih model yang akan digunakan untuk{' '}
+              {purpose === 'chat' ? 'balasan AI' : 'pencarian knowledge'}.
+            </p>
+          </div>
+        </div>
+        <div className="ai-model-toolbar">
+          <div>
+            <strong>{loadedAt ? `${models.length} model tersedia` : 'Katalog model'}</strong>
+            <small>
+              {loadedAt
+                ? `Diperbarui ${dateLabel(loadedAt)}`
+                : 'Muat model yang tersedia pada provider.'}
+            </small>
+          </div>
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={!canDiscover || (isNew && hasEndpoint && !baseUrl.trim())}
+            onClick={() => void discover()}
+          >
+            {busy === 'models' ? 'Mengambil model…' : 'Ambil daftar model'}
+          </button>
+        </div>
+        {models.length > 0 && !manual && (
+          <label htmlFor={`${id}-search`} className="ai-search-label">
+            Cari model
+            <input
+              id={`${id}-search`}
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Cari berdasarkan ID model…"
+            />
           </label>
-        ) : null}
-        <label>
-          Model
-          <input
-            list={`models-${connection.id}`}
-            value={modelId}
-            onChange={(event) => setModelId(event.target.value)}
-            required
-          />
-          <datalist id={`models-${connection.id}`}>
-            {models.map((model) => (
-              <option key={model} value={model} />
-            ))}
-          </datalist>
+        )}
+        <label htmlFor={`${id}-model`}>
+          {purpose === 'chat' ? 'Model chat' : 'Model embedding'}
+          {manual ? (
+            <input
+              id={`${id}-model`}
+              value={modelId}
+              onChange={(e) => updateModel(e.target.value)}
+              placeholder="Masukkan ID model dari provider"
+              spellCheck={false}
+            />
+          ) : (
+            <select
+              id={`${id}-model`}
+              value={modelId}
+              onChange={(e) => updateModel(e.target.value)}
+            >
+              <option value="">Pilih model dari API</option>
+              {visibleModels.map((model) => (
+                <option key={model} value={model}>
+                  {model}
+                </option>
+              ))}
+            </select>
+          )}
         </label>
-        {connection.purpose === 'embedding' ? (
-          <label>
+        <label className="ai-checkbox">
+          <input type="checkbox" checked={manual} onChange={(e) => setManual(e.target.checked)} />
+          <span>Masukkan ID model secara manual</span>
+        </label>
+        {purpose === 'embedding' && (
+          <label htmlFor={`${id}-dimensions`}>
             Dimensi embedding
             <input
+              id={`${id}-dimensions`}
               type="number"
-              min="1"
-              max="16384"
+              min={1}
+              max={16384}
               value={dimensions}
-              onChange={(event) => setDimensions(event.target.value)}
-              required
+              disabled={!isNew}
+              onChange={(e) => setDimensions(Number(e.target.value))}
             />
           </label>
-        ) : null}
-        <label>
-          Alasan perubahan
-          <input
-            minLength={8}
-            maxLength={500}
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            required
-          />
-        </label>
-        <div className="action-row wrap-actions">
-          <button className="secondary-button" disabled={busy} type="submit">
-            Simpan konfigurasi
-          </button>
-          <button
-            className="secondary-button"
-            disabled={busy}
-            type="button"
-            onClick={() =>
-              void action(async () => {
-                const response = await api<string[]>(
-                  `/ai/provider-connections/${connection.id}/models`
-                );
-                setModels(response.data);
-              }, 'Daftar model dimuat dari server.')
-            }
-          >
-            Ambil model
-          </button>
-          <button
-            className="secondary-button"
-            disabled={busy}
-            type="button"
-            onClick={() =>
-              void action(
-                () =>
-                  api(`/ai/provider-connections/${connection.id}/test`, {
-                    method: 'POST',
-                    body: JSON.stringify({ expectedRevision: connection.revision, reason })
-                  }),
-                'Uji koneksi selesai.'
-              )
-            }
-          >
-            Uji server-side
-          </button>
-          <button
-            className={active ? 'danger-button' : 'primary-button'}
-            disabled={busy || (!active && connection.healthState !== 'ready')}
-            type="button"
-            onClick={() =>
-              void action(
-                () =>
-                  api(`/ai/integration/${active ? 'deactivate' : 'activate'}`, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                      purpose: connection.purpose,
-                      ...(active ? {} : { connectionId: connection.id }),
-                      expectedRevision: integrationRevision,
-                      reason
-                    })
-                  }),
-                active ? 'Integrasi dinonaktifkan.' : 'Integrasi diaktifkan.'
-              )
-            }
-          >
-            {active ? 'Nonaktifkan' : 'Aktifkan'}
-          </button>
-        </div>
-      </form>
-      {connection.provider !== 'mock' ? (
-        <div className="credential-panel">
-          <label>
-            Ganti kredensial (write-only)
-            <input
-              autoComplete="new-password"
-              type="password"
-              value={secret}
-              placeholder={
-                connection.credentialConfigured
-                  ? 'Kosong = tetap gunakan yang tersimpan'
-                  : 'Belum tersimpan'
-              }
-              onChange={(event) => setSecret(event.target.value)}
-            />
-          </label>
-          <div className="action-row wrap-actions">
-            <button
-              className="secondary-button"
-              disabled={busy || secret.length < 8}
-              type="button"
-              onClick={() =>
-                void action(
-                  () =>
-                    api(`/ai/provider-connections/${connection.id}/credential`, {
+        )}
+        <details className="ai-advanced">
+          <summary>Pengaturan lanjutan</summary>
+          <div className="ai-form-two">
+            <label htmlFor={`${id}-timeout`}>
+              Timeout (detik)
+              <input
+                id={`${id}-timeout`}
+                type="number"
+                min={1}
+                max={60}
+                value={timeoutMs / 1000}
+                disabled={!isNew}
+                onChange={(e) => {
+                  setTimeoutMs(Number(e.target.value) * 1000);
+                  setProbe(null);
+                }}
+              />
+            </label>
+            <label htmlFor={`${id}-output`}>
+              Batas token output
+              <input
+                id={`${id}-output`}
+                type="number"
+                min={16}
+                max={32768}
+                value={maxOutputTokens}
+                disabled={!isNew}
+                onChange={(e) => {
+                  setMaxOutputTokens(Number(e.target.value));
+                  setProbe(null);
+                }}
+              />
+            </label>
+          </div>
+          <p>
+            Parameter tersimpan mengikuti koneksi. Gunakan koneksi baru untuk endpoint atau
+            pengaturan yang berbeda.
+          </p>
+          {connection && provider !== 'mock' && connection.credentialConfigured && (
+            <div className="ai-revoke-key">
+              <p>
+                Mencabut API key akan menonaktifkan koneksi ini sampai key baru disimpan dan diuji.
+              </p>
+              <button
+                type="button"
+                className="ai-text-button ai-danger-link"
+                onClick={() =>
+                  void run('revoke', async () => {
+                    await api(`/ai/provider-connections/${connection.id}/credential/delete`, {
                       method: 'POST',
                       body: JSON.stringify({
-                        credential: secret,
                         expectedRevision: connection.revision,
-                        reason
+                        reason: 'Mencabut akses provider melalui pengaturan Integrasi AI'
                       })
-                    }),
-                  'Kredensial diganti dan koneksi dinonaktifkan sampai diuji ulang.'
-                )
-              }
-            >
-              Simpan kredensial baru
-            </button>
-            <button
-              className="danger-button"
-              disabled={busy || !connection.credentialConfigured}
-              type="button"
-              onClick={() =>
-                void action(
-                  () =>
-                    api(`/ai/provider-connections/${connection.id}/credential/delete`, {
-                      method: 'POST',
-                      body: JSON.stringify({ expectedRevision: connection.revision, reason })
-                    }),
-                  'Kredensial dicabut.'
-                )
-              }
-            >
-              Cabut kredensial
-            </button>
+                    });
+                    setProbe(null);
+                    setSecret('');
+                    await onRefresh();
+                  })
+                }
+              >
+                Cabut API key
+              </button>
+            </div>
+          )}
+        </details>
+        <div className="ai-step-divider" />
+        <div className="ai-step-heading">
+          <div>
+            <h3>Validasi & aktivasi</h3>
+            <p>
+              {isNew
+                ? 'Simpan koneksi, lalu uji model sebelum mengaktifkannya.'
+                : 'Model aktif tetap digunakan selama kandidat model diuji.'}
+            </p>
           </div>
-          <small>
-            {connection.credentialConfigured
-              ? `Tersimpan terenkripsi${connection.credentialRotatedAt ? ` · rotasi ${new Date(connection.credentialRotatedAt).toLocaleString('id-ID')}` : ''}`
-              : 'Tidak ada kredensial tersimpan'}
-          </small>
         </div>
-      ) : null}
-      {notice ? (
-        <p className="notice" role="status">
-          {notice}
-        </p>
-      ) : null}
-    </article>
+        {probe && (
+          <div className="ai-test-result" role="status">
+            <Icon kind="check" />
+            <div>
+              <strong>Model siap digunakan</strong>
+              <p>
+                {probe.actualModel || modelId} <span>· {probe.latencyMs} ms</span>
+              </p>
+              <small>Format respons chatbot sudah diperiksa.</small>
+            </div>
+          </div>
+        )}
+        {notice && (
+          <div
+            className={`ai-feedback ${notice.error ? 'is-error' : ''}`}
+            role={notice.error ? 'alert' : 'status'}
+          >
+            {notice.text}
+          </div>
+        )}
+        <div className="ai-editor-footer">
+          {isNew ? (
+            <button
+              type="button"
+              className="primary-button"
+              disabled={
+                name.trim().length < 2 ||
+                !modelId.trim() ||
+                (provider !== 'mock' && secret.trim().length < 8) ||
+                (hasEndpoint && !/^https?:\/\//u.test(baseUrl)) ||
+                timeoutMs < 1000 ||
+                timeoutMs > 60000 ||
+                maxOutputTokens < 16 ||
+                maxOutputTokens > 32768
+              }
+              onClick={() => void save()}
+            >
+              {busy === 'save' ? 'Menyimpan…' : 'Simpan koneksi'}
+              <Icon kind="arrow" />
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={
+                  !modelId.trim() ||
+                  editKey ||
+                  (provider !== 'mock' && !connection.credentialConfigured) ||
+                  (purpose === 'embedding' && modelId !== connection.modelId)
+                }
+                onClick={() => void test()}
+              >
+                {busy === 'test' ? 'Menguji model…' : 'Uji model'}
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                disabled={
+                  (!(probe && probe.modelId === modelId) && !embeddingReady) ||
+                  editKey ||
+                  !integration ||
+                  (active && modelId === connection.modelId)
+                }
+                onClick={() => void apply()}
+              >
+                {busy === 'apply'
+                  ? 'Mengaktifkan…'
+                  : active && modelId === connection.modelId
+                    ? 'Model sedang aktif'
+                    : 'Gunakan model ini'}
+                <Icon kind="arrow" />
+              </button>
+            </>
+          )}
+        </div>
+        {busy && (
+          <p className="ai-progress" role="status">
+            {busy === 'models'
+              ? 'Menghubungi provider untuk mengambil daftar model…'
+              : busy === 'test' || busy === 'apply'
+                ? 'Memeriksa respons model. Proses dapat memerlukan beberapa detik…'
+                : 'Menyimpan konfigurasi…'}
+          </p>
+        )}
+        {!isNew && purpose === 'chat' && (
+          <p className="ai-footer-note">
+            Pengujian menggunakan request kecil. Model akan diperiksa kembali saat diaktifkan.
+          </p>
+        )}
+        {!isNew && purpose === 'embedding' && modelId !== connection.modelId && (
+          <p className="ai-inline-hint">
+            Untuk model embedding berbeda, buat koneksi baru dan bangun ulang indeks knowledge.
+          </p>
+        )}
+      </fieldset>
+    </section>
   );
-};
+}
 
 export default function AiSettingsPage() {
   const [integration, setIntegration] = useState<Integration | null>(null);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [purpose, setPurpose] = useState<Purpose>('chat');
-  const [provider, setProvider] = useState<Provider>('mock');
-  const [notice, setNotice] = useState<string | null>(null);
-
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [newVersion, setNewVersion] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [deactivating, setDeactivating] = useState(false);
   const refresh = useCallback(async () => {
-    const [integrationResult, connectionsResult] = await Promise.all([
+    const [i, c] = await Promise.all([
       api<Integration>('/ai/integration'),
       api<Connection[]>('/ai/provider-connections')
     ]);
-    setIntegration(integrationResult.data);
-    setConnections(connectionsResult.data);
+    setIntegration(i.data);
+    setConnections(c.data);
+    setError(null);
+    return { integration: i.data, connections: c.data };
   }, []);
-
   useEffect(() => {
-    void refresh().catch(() => setNotice('Konfigurasi AI tidak dapat dimuat.'));
-  }, [refresh]);
-
-  useEffect(() => {
-    if (purpose === 'embedding' && provider === 'anthropic') setProvider('mock');
-  }, [provider, purpose]);
-
-  const create = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    try {
-      const credential = String(form.get('credential') ?? '');
-      await api('/ai/provider-connections', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: form.get('name'),
-          purpose,
-          provider,
-          transport: transportFor(provider),
-          baseUrl: ['openai-compatible', 'openclaw-gateway'].includes(provider)
-            ? form.get('baseUrl')
-            : null,
-          modelId: form.get('modelId'),
-          dimensions: purpose === 'embedding' ? Number(form.get('dimensions')) : null,
-          taskType: purpose === 'embedding' ? 'RETRIEVAL_QUERY' : null,
-          timeoutMs: 15000,
-          maxRetries: 1,
-          maxOutputTokens: 512,
-          generationConfig: purpose === 'chat' ? { temperature: 0.2, topP: 0.9 } : {},
-          ...(credential ? { credential } : {}),
-          reason: form.get('reason')
-        })
-      });
-      event.currentTarget.reset();
-      setNotice('Koneksi dibuat. Jalankan uji sebelum aktivasi.');
-      await refresh();
-    } catch (error) {
-      setNotice(error instanceof ApiError ? error.message : 'Koneksi gagal dibuat.');
-    }
-  };
-
-  return (
-    <Shell eyebrow="Provider control" title="Integrasi AI">
-      <section className="hero-row ai-hero">
-        <div>
-          <p className="eyebrow">Vendor-neutral runtime</p>
-          <h2>Chat dan embedding dapat dipilih terpisah</h2>
-          <p>
-            Kredensial bersifat write-only. Aktivasi hanya tersedia setelah uji server-side pada
-            revisi konfigurasi yang sama.
-          </p>
-        </div>
-        <span className="state-badge">{integration?.status ?? 'memuat'}</span>
-      </section>
-
-      {notice ? (
-        <div className="notice" role="status">
-          {notice}
-        </div>
-      ) : null}
-
-      <div className="ai-purpose-grid">
-        {(['chat', 'embedding'] as const).map((item) => {
-          const activeId =
-            item === 'chat'
-              ? integration?.activeChatConnectionId
-              : integration?.activeEmbeddingConnectionId;
-          return (
-            <section className="provider-column" key={item}>
-              <div className="section-heading purpose-heading">
-                <div>
-                  <p className="eyebrow">{item === 'chat' ? 'Generation' : 'Retrieval'}</p>
-                  <h2>{item === 'chat' ? 'Provider chat' : 'Provider embedding'}</h2>
-                </div>
-                <span className={`status-dot ${activeId ? 'healthy' : 'muted'}`} />
-              </div>
-              {connections
-                .filter((connection) => connection.purpose === item)
-                .map((connection) => (
-                  <ConnectionCard
-                    key={connection.id}
-                    connection={connection}
-                    active={connection.id === activeId}
-                    integrationRevision={integration?.revision ?? 0}
-                    refresh={refresh}
-                  />
-                ))}
-              {connections.every((connection) => connection.purpose !== item) ? (
-                <div className="empty-state">Belum ada koneksi {item}.</div>
-              ) : null}
-            </section>
+    let mounted = true;
+    void refresh()
+      .then((data) => {
+        if (mounted)
+          setSelectedId(
+            data.integration.activeChatConnectionId ??
+              data.connections.find((c) => c.purpose === 'chat')?.id ??
+              null
           );
-        })}
-      </div>
-
-      <section className="section-card create-provider-card">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Koneksi baru</p>
-            <h2>Tambahkan provider</h2>
+      })
+      .catch(() => {
+        if (mounted) setError('Pengaturan AI belum dapat dimuat. Coba muat ulang.');
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [refresh]);
+  const activeId =
+    purpose === 'chat'
+      ? integration?.activeChatConnectionId
+      : integration?.activeEmbeddingConnectionId;
+  const activeConnection = connections.find((c) => c.id === activeId);
+  const selected = connections.find((c) => c.id === selectedId && c.purpose === purpose) ?? null;
+  const filtered = connections.filter((c) => c.purpose === purpose);
+  const startNew = () => {
+    setSelectedId(null);
+    setNewVersion((v) => v + 1);
+  };
+  const changePurpose = (next: Purpose) => {
+    setPurpose(next);
+    const nextActive =
+      next === 'chat'
+        ? integration?.activeChatConnectionId
+        : integration?.activeEmbeddingConnectionId;
+    setSelectedId(nextActive ?? connections.find((c) => c.purpose === next)?.id ?? null);
+  };
+  return (
+    <Shell eyebrow="PENGATURAN" title="Integrasi AI">
+      <div className="ai-settings-page">
+        <header className="ai-settings-hero">
+          <div className="ai-hero-copy">
+            <p className="eyebrow">PROVIDER & MODEL</p>
+            <h2>Koneksi AI</h2>
+            <p>Kelola akses API dan model untuk percakapan serta knowledge.</p>
           </div>
-          <span className="state-badge">draft</span>
-        </div>
-        <form className="provider-form-grid" onSubmit={(event) => void create(event)}>
-          <label>
-            Nama koneksi
-            <input name="name" minLength={2} maxLength={160} required />
-          </label>
-          <label>
-            Fungsi
-            <select value={purpose} onChange={(event) => setPurpose(event.target.value as Purpose)}>
-              <option value="chat">Chat</option>
-              <option value="embedding">Embedding</option>
-            </select>
-          </label>
-          <label>
-            Provider
-            <select
-              value={provider}
-              onChange={(event) => setProvider(event.target.value as Provider)}
+          <button type="button" className="primary-button ai-new-connection" onClick={startNew}>
+            <span aria-hidden="true">+</span> Koneksi baru
+          </button>
+        </header>
+        <div className="ai-page-toolbar">
+          <div className="ai-tabs" role="group" aria-label="Fungsi koneksi">
+            <button
+              type="button"
+              aria-pressed={purpose === 'chat'}
+              onClick={() => changePurpose('chat')}
             >
-              <option value="mock">Mock aman</option>
-              <option value="openai">OpenAI native</option>
-              <option value="anthropic" disabled={purpose === 'embedding'}>
-                Anthropic native
-              </option>
-              <option value="gemini">Gemini native</option>
-              <option value="openai-compatible">OpenAI-compatible</option>
-              <option value="openclaw-gateway">OpenClaw gateway</option>
-            </select>
-          </label>
-          <label>
-            Model
-            <input name="modelId" defaultValue={provider === 'mock' ? 'mock-safe' : ''} required />
-          </label>
-          {['openai-compatible', 'openclaw-gateway'].includes(provider) ? (
-            <label>
-              Base URL
-              <input
-                name="baseUrl"
-                type="url"
-                placeholder={
-                  provider === 'openclaw-gateway'
-                    ? 'http://openclaw:18789/v1'
-                    : 'https://provider.example/v1'
-                }
-                required
-              />
-            </label>
-          ) : null}
-          {purpose === 'embedding' ? (
-            <label>
-              Dimensi
-              <input
-                name="dimensions"
-                type="number"
-                min="1"
-                max="16384"
-                defaultValue="1536"
-                required
-              />
-            </label>
-          ) : null}
-          {provider !== 'mock' ? (
-            <label>
-              Kredensial awal (write-only)
-              <input name="credential" type="password" minLength={8} autoComplete="new-password" />
-            </label>
-          ) : null}
-          <label className="span-full">
-            Alasan
-            <input
-              name="reason"
-              minLength={8}
-              maxLength={500}
-              defaultValue="Menambahkan koneksi provider yang telah disetujui"
-              required
-            />
-          </label>
-          <div className="span-full">
-            <button className="primary-button" type="submit">
-              Buat koneksi
+              Chat<span>{connections.filter((c) => c.purpose === 'chat').length}</span>
+            </button>
+            <button
+              type="button"
+              aria-pressed={purpose === 'embedding'}
+              onClick={() => changePurpose('embedding')}
+            >
+              Embedding<span>{connections.filter((c) => c.purpose === 'embedding').length}</span>
             </button>
           </div>
-        </form>
-      </section>
+          <span className="ai-toolbar-note">
+            <Icon kind="key" />
+            Credential terenkripsi
+          </span>
+        </div>
+        {error && (
+          <div className="ai-feedback is-error" role="alert">
+            {error}
+            <button
+              type="button"
+              className="ai-text-button"
+              onClick={() =>
+                void refresh().catch(() => setError('Pengaturan belum dapat dimuat. Coba lagi.'))
+              }
+            >
+              Muat ulang
+            </button>
+          </div>
+        )}
+        {loading ? (
+          <section className="section-card ai-loading" role="status">
+            Memuat koneksi AI…
+          </section>
+        ) : (
+          <div className="ai-settings-layout">
+            <aside className="ai-settings-sidebar" aria-label="Ringkasan integrasi AI">
+              <section className="section-card ai-connections-card">
+                <div className="ai-connections-heading">
+                  <h3>Koneksi tersimpan</h3>
+                  <span>{filtered.length}</span>
+                </div>
+                <label className="ai-mobile-connection-picker">
+                  Koneksi tersimpan
+                  <select
+                    value={selectedId ?? ''}
+                    onChange={(e) => (e.target.value ? setSelectedId(e.target.value) : startNew())}
+                  >
+                    <option value="">Koneksi baru</option>
+                    {filtered.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                        {c.id === activeId ? ' · Aktif' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {filtered.length ? (
+                  <div className="ai-connections-list">
+                    {filtered.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className={`ai-connection-item ${selectedId === c.id ? 'is-selected' : ''}`}
+                        aria-pressed={selectedId === c.id}
+                        onClick={() => setSelectedId(c.id)}
+                      >
+                        <span className="ai-connection-initial">
+                          {c.name.slice(0, 1).toUpperCase()}
+                        </span>
+                        <span className="ai-connection-copy">
+                          <strong>{c.name}</strong>
+                          <small>{providers.find((p) => p.value === c.provider)?.label}</small>
+                        </span>
+                        {c.id === activeId && (
+                          <span className="ai-connection-badge is-active">Aktif</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="ai-empty">
+                    <Icon kind="key" />
+                    <strong>Belum ada koneksi</strong>
+                    <p>Tambahkan provider untuk mulai menggunakan AI.</p>
+                  </div>
+                )}
+              </section>
+              <section className={`ai-active-card ${activeConnection ? 'is-active' : ''}`}>
+                <div className="ai-active-heading">
+                  <span className={`status-dot ${activeConnection ? 'healthy' : 'muted'}`} />
+                  <span>{activeConnection ? 'MODEL AKTIF' : 'STATUS INTEGRASI'}</span>
+                </div>
+                <h3>{activeConnection?.modelId ?? 'Belum diaktifkan'}</h3>
+                <p>
+                  {activeConnection
+                    ? activeConnection.name
+                    : 'Aktifkan model setelah koneksi lolos pengujian.'}
+                </p>
+                {activeConnection && (
+                  <>
+                    <div className="ai-active-meta">
+                      <span>Uji terakhir</span>
+                      <strong>{dateLabel(activeConnection.lastTestedAt)}</strong>
+                    </div>
+                    <button
+                      type="button"
+                      className="ai-text-button ai-danger-link ai-deactivate"
+                      disabled={deactivating}
+                      onClick={() => {
+                        if (!integration || deactivating) return;
+                        setDeactivating(true);
+                        void api('/ai/integration/deactivate', {
+                          method: 'POST',
+                          body: JSON.stringify({
+                            purpose,
+                            expectedRevision: integration.revision,
+                            reason: 'Menonaktifkan koneksi AI melalui pengaturan integrasi'
+                          })
+                        })
+                          .then(() => refresh())
+                          .catch((e) => setError(friendlyError(e)))
+                          .finally(() => setDeactivating(false));
+                      }}
+                    >
+                      {deactivating ? 'Menonaktifkan…' : 'Nonaktifkan koneksi'}
+                    </button>
+                  </>
+                )}
+              </section>
+              <div className="ai-security-note">
+                <Icon kind="key" />
+                <p>API key disimpan terenkripsi dan hanya digunakan oleh server.</p>
+              </div>
+            </aside>
+            <ConnectionEditor
+              key={
+                selected ? `${selected.id}:${selected.revision}` : `new:${purpose}:${newVersion}`
+              }
+              connection={selected}
+              purpose={purpose}
+              integration={integration}
+              onRefresh={async () => {
+                await refresh();
+              }}
+              onSaved={async (id) => {
+                await refresh();
+                setSelectedId(id);
+              }}
+            />
+          </div>
+        )}
+      </div>
     </Shell>
   );
 }

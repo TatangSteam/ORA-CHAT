@@ -45,6 +45,21 @@ export const protectedRoutePolicies = [
   },
   {
     method: 'POST',
+    path: '/api/admin/v1/ai/provider-connections/discover-models',
+    permission: 'ai.settings.manage'
+  },
+  {
+    method: 'POST',
+    path: '/api/admin/v1/ai/provider-connections/:id/model-test',
+    permission: 'ai.settings.manage'
+  },
+  {
+    method: 'POST',
+    path: '/api/admin/v1/ai/provider-connections/:id/model-apply',
+    permission: 'ai.activate'
+  },
+  {
+    method: 'POST',
     path: '/api/admin/v1/ai/provider-connections/:id',
     permission: 'ai.settings.manage'
   },

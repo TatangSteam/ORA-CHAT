@@ -2,6 +2,7 @@
 
 import { type FormEvent, useState } from 'react';
 
+import { AppIcon } from '../../components/app-icon';
 import { api, ApiError, setCsrfToken } from '../../lib/api';
 
 interface LoginUser {
@@ -41,7 +42,7 @@ export default function LoginPage() {
       <section className="login-panel" aria-labelledby="login-title">
         <div className="brand login-brand">
           <span className="brand-mark" aria-hidden="true">
-            ◉
+            <AppIcon name="session" size={24} />
           </span>
           <span>
             <strong>Control Room</strong>
@@ -52,6 +53,10 @@ export default function LoginPage() {
           <p className="eyebrow">Akses administrator</p>
           <h1 id="login-title">Masuk ke control panel</h1>
           <p>Gunakan akun administrator untuk melanjutkan.</p>
+          <p>
+            Masukkan username dan password yang diberikan pengelola. Jika belum memiliki akun atau
+            lupa password, hubungi pengelola aplikasi.
+          </p>
         </div>
         {error ? (
           <div className="error-summary" role="alert">
