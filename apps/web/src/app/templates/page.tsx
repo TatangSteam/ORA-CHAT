@@ -3,6 +3,7 @@
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 
 import { Shell } from '../../components/shell';
+import { SectionHelp, FieldHelp } from '../../components/section-help';
 import { api, ApiError } from '../../lib/api';
 
 const variables = [
@@ -133,6 +134,7 @@ export default function TemplatesPage() {
         <section className="section-card">
           <p className="eyebrow">Versioned internal template</p>
           <h2>{editing ? `Versi baru · ${editing.name}` : 'Template baru'}</h2>
+          <SectionHelp topic="templates-editor" />
           <p>
             Placeholder hanya memakai variable yang disetujui. Template ini bukan template Meta.
           </p>
@@ -141,33 +143,49 @@ export default function TemplatesPage() {
               <label>
                 Nama
                 <input
+                  aria-label="Nama"
+                  aria-describedby="help-templates-1"
                   required
                   disabled={Boolean(editing)}
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                 />
+                <FieldHelp id="help-templates-1">
+                  Nama internal, misalnya Konfirmasi jadwal konsultasi.
+                </FieldHelp>
               </label>
               <label>
                 Kategori
                 <input
+                  aria-label="Kategori"
+                  aria-describedby="help-templates-2"
                   required
                   disabled={Boolean(editing)}
                   value={category}
                   onChange={(event) => setCategory(event.target.value)}
                 />
+                <FieldHelp id="help-templates-2">
+                  Kelompok pesan, misalnya Reservasi atau Tindak lanjut.
+                </FieldHelp>
               </label>
             </div>
             <label>
               Isi template
               <textarea
+                aria-label="Isi template"
+                aria-describedby="help-templates-3"
                 required
                 maxLength={4096}
                 value={body}
                 onChange={(event) => setBody(event.target.value)}
               />
+              <FieldHelp id="help-templates-3">
+                Tulis teks yang dipakai ulang. Gunakan dua kurung kurawal untuk data pengganti,
+                misalnya {'{{nama_pelanggan}}'}, dan centang variabel yang dipakai.
+              </FieldHelp>
             </label>
             <fieldset className="template-variable-grid">
-              <legend>Variable schema</legend>
+              <legend>Data pengganti</legend>
               {variables.map((variable) => (
                 <label key={variable} className="check-row">
                   <input
@@ -187,7 +205,16 @@ export default function TemplatesPage() {
             </fieldset>
             <label>
               Checklist wajib (satu item per baris)
-              <textarea value={checklist} onChange={(event) => setChecklist(event.target.value)} />
+              <textarea
+                aria-label="Checklist wajib (satu item per baris)"
+                aria-describedby="help-templates-4"
+                value={checklist}
+                onChange={(event) => setChecklist(event.target.value)}
+              />
+              <FieldHelp id="help-templates-4">
+                Satu pemeriksaan per baris, misalnya Nomor penerima sudah benar. CS wajib
+                mencentangnya sebelum mengirim.
+              </FieldHelp>
             </label>
             {error && <p className="error-summary">{error}</p>}
             {notice && <p className="notice success-notice">{notice}</p>}
@@ -207,6 +234,7 @@ export default function TemplatesPage() {
         <section className="section-card">
           <p className="eyebrow">Lifecycle dan histori</p>
           <h2>Daftar template</h2>
+          <SectionHelp topic="templates-list" />
           <div
             className="stack-list phase6-template-list"
             role="region"

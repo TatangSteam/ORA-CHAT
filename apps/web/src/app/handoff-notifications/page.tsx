@@ -3,6 +3,7 @@
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 
 import { Shell } from '../../components/shell';
+import { SectionHelp, FieldHelp } from '../../components/section-help';
 import { useSession } from '../../components/use-session';
 import { api, ApiError } from '../../lib/api';
 
@@ -82,15 +83,16 @@ export default function HandoffNotificationsPage() {
           </div>
           <p>
             Saat AI membuat handoff baru, sistem mengirim ringkasan pertanyaan member ke nomor
-            WhatsApp CS melalui durable outbox.
+            WhatsApp CS melalui antrean pengiriman.
           </p>
+          <SectionHelp topic="notifications-status" />
           <dl>
             <div>
               <dt>Nomor penerima</dt>
               <dd>{setting?.phone ? `+${setting.phone}` : 'Belum diatur'}</dd>
             </div>
             <div>
-              <dt>Revision</dt>
+              <dt>Revisi pengaturan</dt>
               <dd>{setting?.revision ?? 0}</dd>
             </div>
             <div>
@@ -107,6 +109,7 @@ export default function HandoffNotificationsPage() {
         <article className="section-card">
           <p className="eyebrow">Pengaturan penerima</p>
           <h2>Nomor pribadi CS</h2>
+          <SectionHelp topic="notifications-settings" />
           <p>Gunakan format 08… atau 62…. Perubahan berlaku langsung tanpa restart layanan.</p>
           {notice ? (
             <div className="notice" role="status">
@@ -117,6 +120,8 @@ export default function HandoffNotificationsPage() {
             <label>
               Nomor WhatsApp CS
               <input
+                aria-label="Nomor WhatsApp CS"
+                aria-describedby="help-handoff-notifications-1"
                 type="tel"
                 inputMode="tel"
                 placeholder="081234567890"
@@ -127,6 +132,10 @@ export default function HandoffNotificationsPage() {
                 required={enabled}
                 disabled={!canManage || busy}
               />
+              <FieldHelp id="help-handoff-notifications-1">
+                Isi nomor petugas yang menerima ringkasan handoff, bukan nomor pelanggan. Contoh:
+                081234567890.
+              </FieldHelp>
             </label>
             <label className="inline-checkbox">
               <input
@@ -140,6 +149,8 @@ export default function HandoffNotificationsPage() {
             <label>
               Alasan perubahan
               <input
+                aria-label="Alasan perubahan"
+                aria-describedby="help-handoff-notifications-2"
                 minLength={8}
                 maxLength={500}
                 value={reason}
@@ -147,6 +158,10 @@ export default function HandoffNotificationsPage() {
                 required
                 disabled={!canManage || busy}
               />
+              <FieldHelp id="help-handoff-notifications-2">
+                Catat alasan agar admin lain memahami perubahan, misalnya Pergantian CS yang
+                bertugas hari ini.
+              </FieldHelp>
             </label>
             <button className="primary-button" type="submit" disabled={!canManage || busy}>
               {busy ? 'Menyimpan…' : 'Simpan pengaturan'}

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import { Shell } from '../../components/shell';
+import { SectionHelp } from '../../components/section-help';
 import { api } from '../../lib/api';
 
 interface Analytics {
@@ -88,6 +89,7 @@ export default function AiAnalyticsPage() {
           <div>
             <p className="eyebrow">Pemakaian API</p>
             <h2>Pemakaian token provider</h2>
+            <SectionHelp topic="analytics-tokens" />
           </div>
           <div aria-label="Pilih periode token" className="token-period-selector">
             {[1, 7, 30, 90].map((option) => (
@@ -172,6 +174,7 @@ export default function AiAnalyticsPage() {
               <div>
                 <p className="eyebrow">Estimasi tagihan</p>
                 <h3>Harga jual pemakaian AI</h3>
+                <SectionHelp topic="analytics-cost" />
                 <small>
                   Untuk {number(totalTokens)} token dalam {analytics.windowDays} hari terakhir
                 </small>
@@ -195,6 +198,7 @@ export default function AiAnalyticsPage() {
       </section>
       {analytics ? (
         <>
+          <SectionHelp topic="analytics-quality" />
           <section className="metric-grid">
             <article className="metric-card">
               <span>Jawaban berhasil</span>
@@ -230,6 +234,7 @@ export default function AiAnalyticsPage() {
           <section className="section-card">
             <p className="eyebrow">Status provider</p>
             <h2>Waktu respons dan kesalahan</h2>
+            <SectionHelp topic="analytics-provider" />
             <div className="stack-list">
               {(analytics?.providers ?? []).map((provider) => (
                 <article className="list-row" key={provider.provider}>

@@ -3,6 +3,7 @@
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 
 import { Shell } from '../../components/shell';
+import { SectionHelp, FieldHelp } from '../../components/section-help';
 import { api, ApiError } from '../../lib/api';
 
 interface Source {
@@ -98,16 +99,23 @@ export default function AiSearchPage() {
         <section className="section-card">
           <p className="eyebrow">Uji tanpa mengirim WhatsApp</p>
           <h2>Jawaban dengan sitasi</h2>
+          <SectionHelp topic="search-test" />
           <form onSubmit={(event) => void run(event)}>
             <label>
               Pertanyaan
               <textarea
+                aria-label="Pertanyaan"
+                aria-describedby="help-ai-search-1"
                 value={question}
                 onChange={(event) => setQuestion(event.target.value)}
                 required
                 minLength={2}
                 maxLength={2000}
               />
+              <FieldHelp id="help-ai-search-1">
+                Contoh: Berapa jam layanan pelanggan? Coba juga typo dan pertanyaan yang
+                informasinya belum tersedia.
+              </FieldHelp>
             </label>
             <button className="primary-button" type="submit" disabled={running}>
               {running ? 'Menguji jawaban…' : 'Uji jawaban'}
@@ -155,9 +163,19 @@ export default function AiSearchPage() {
         <section className="section-card">
           <p className="eyebrow">Instruksi jawaban</p>
           <h2>Aturan penggunaan sumber</h2>
+          <SectionHelp topic="search-prompt" />
           <label>
             Instruksi untuk AI
-            <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} />
+            <textarea
+              aria-label="Instruksi untuk AI"
+              aria-describedby="help-ai-search-2"
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+            />
+            <FieldHelp id="help-ai-search-2">
+              Atur cara menjawab, misalnya Jawab ringkas dan jangan menebak. Fakta seperti harga dan
+              alamat ditambahkan di Knowledge.
+            </FieldHelp>
           </label>
           <p>
             Publikasi berlaku untuk jawaban berikutnya. Setelah mengubah instruksi, uji kembali
@@ -175,6 +193,7 @@ export default function AiSearchPage() {
       <section className="section-card">
         <p className="eyebrow">Hasil pengujian</p>
         <h2>Riwayat jawaban dan sumber</h2>
+        <SectionHelp topic="search-history" />
         {traceError ? (
           <p className="error-summary" role="alert">
             {traceError}

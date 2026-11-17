@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Shell } from '../../components/shell';
+import { SectionHelp, FieldHelp } from '../../components/section-help';
 import { useSession } from '../../components/use-session';
 import { api, ApiError } from '../../lib/api';
 import type { ConversationSummary, MessageSummary } from '../../lib/messaging';
@@ -180,11 +181,12 @@ export default function InboxPage() {
             <div>
               <p className="eyebrow">WhatsApp</p>
               <h2>Percakapan</h2>
+              <SectionHelp topic="inbox-list" />
             </div>
             <span className="count-badge">{conversations.length}</span>
           </div>
           <label>
-            <span className="sr-only">Cari percakapan</span>
+            <span className="filter-label">Cari percakapan</span>
             <input
               type="search"
               value={search}
@@ -194,7 +196,7 @@ export default function InboxPage() {
           </label>
           <div className="inbox-filters" aria-label="Filter percakapan">
             <label>
-              <span className="sr-only">Prioritas</span>
+              <span className="filter-label">Prioritas</span>
               <select
                 value={priorityFilter}
                 onChange={(event) => setPriorityFilter(event.target.value as typeof priorityFilter)}
@@ -206,7 +208,7 @@ export default function InboxPage() {
               </select>
             </label>
             <label>
-              <span className="sr-only">Mode penanganan</span>
+              <span className="filter-label">Mode penanganan</span>
               <select
                 value={modeFilter}
                 onChange={(event) => setModeFilter(event.target.value as typeof modeFilter)}
@@ -293,6 +295,7 @@ export default function InboxPage() {
                   ) : null}
                 </div>
               </div>
+              <SectionHelp topic="inbox-chat" />
               {notice && (
                 <p className="notice success-notice automation-notice" role="status">
                   {notice}
@@ -333,10 +336,13 @@ export default function InboxPage() {
                 ))}
                 {messages.length === 0 && <p className="empty-state">Timeline masih kosong.</p>}
               </div>
+              <SectionHelp topic="inbox-reply" />
               <form className="reply-form" onSubmit={(event) => void sendReply(event)}>
                 <label>
                   Balasan manual
                   <textarea
+                    aria-label="Balasan manual"
+                    aria-describedby="help-inbox-1"
                     maxLength={4096}
                     required
                     value={reply}
@@ -345,8 +351,12 @@ export default function InboxPage() {
                   />
                   <small className="composer-meta">
                     {reply.length.toLocaleString('id-ID')} / 4.096 karakter · dikirim melalui
-                    durable outbox
+                    antrean pengiriman
                   </small>
+                  <FieldHelp id="help-inbox-1">
+                    Balasan untuk pelanggan yang dipilih. Tombol kirim mengantrekan pesan WhatsApp
+                    sungguhan; periksa penerima terlebih dahulu.
+                  </FieldHelp>
                 </label>
                 <button className="primary-button" disabled={busy || !canSend} type="submit">
                   {busy ? 'Memproses…' : 'Kirim lewat outbox'}

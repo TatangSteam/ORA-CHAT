@@ -3,6 +3,7 @@
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 
 import { Shell } from '../../components/shell';
+import { SectionHelp, FieldHelp } from '../../components/section-help';
 import { api, ApiError, uploadDocument } from '../../lib/api';
 
 interface DocumentItem {
@@ -76,6 +77,7 @@ export default function DocumentsPage() {
           <div>
             <p className="eyebrow">Unggah dokumen</p>
             <h2>Tambahkan sumber jawaban</h2>
+            <SectionHelp topic="documents-upload" />
             <p>Dokumen diperiksa sebelum tersedia sebagai sumber jawaban AI.</p>
           </div>
         </div>
@@ -83,11 +85,17 @@ export default function DocumentsPage() {
           <label>
             Pilih PDF, DOCX, atau TXT (maks. 10 MiB)
             <input
+              aria-label="Pilih PDF, DOCX, atau TXT (maks. 10 MiB)"
+              aria-describedby="help-documents-1"
               type="file"
               accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
               onChange={(event) => setFile(event.target.files?.[0] ?? null)}
               required
             />
+            <FieldHelp id="help-documents-1">
+              Pilih dokumen yang teksnya dapat dibaca. PDF hasil pindai atau gambar mungkin tidak
+              menghasilkan teks yang dapat dicari.
+            </FieldHelp>
           </label>
           <button className="primary-button" type="submit" disabled={!file || uploading}>
             {uploading ? 'Mengunggah…' : 'Unggah dokumen'}
@@ -102,6 +110,7 @@ export default function DocumentsPage() {
       <section className="section-card">
         <p className="eyebrow">Daftar dokumen</p>
         <h2>Dokumen privat</h2>
+        <SectionHelp topic="documents-list" />
         {loadError ? (
           <p className="error-summary" role="alert">
             {loadError}

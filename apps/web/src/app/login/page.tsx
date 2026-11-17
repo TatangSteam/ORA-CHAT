@@ -3,6 +3,7 @@
 import { type FormEvent, useState } from 'react';
 
 import { AppIcon } from '../../components/app-icon';
+import { FieldHelp } from '../../components/section-help';
 import { api, ApiError, setCsrfToken } from '../../lib/api';
 
 interface LoginUser {
@@ -67,11 +68,30 @@ export default function LoginPage() {
           <input name="tenantSlug" type="hidden" value="default" />
           <label>
             Username
-            <input name="username" autoComplete="username" required />
+            <input
+              aria-label="Username"
+              aria-describedby="help-login-1"
+              name="username"
+              autoComplete="username"
+              required
+            />
+            <FieldHelp id="help-login-1">
+              Nama akun dari pengelola aplikasi, bukan nomor WhatsApp pelanggan.
+            </FieldHelp>
           </label>
           <label>
             Password
-            <input name="password" type="password" autoComplete="current-password" required />
+            <input
+              aria-label="Password"
+              aria-describedby="help-login-2"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+            />
+            <FieldHelp id="help-login-2">
+              Kata sandi akunmu. Jika lupa, hubungi pengelola aplikasi untuk bantuan akses.
+            </FieldHelp>
           </label>
           <button className="primary-button" disabled={busy} type="submit">
             {busy ? 'Memverifikasi…' : 'Masuk'}

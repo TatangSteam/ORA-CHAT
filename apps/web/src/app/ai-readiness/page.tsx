@@ -3,6 +3,7 @@
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 
 import { Shell } from '../../components/shell';
+import { SectionHelp, FieldHelp } from '../../components/section-help';
 import { api, ApiError } from '../../lib/api';
 
 interface TestCase {
@@ -157,30 +158,43 @@ export default function AiReadinessPage() {
         <section className="section-card">
           <p className="eyebrow">Uji tanpa mengirim WhatsApp</p>
           <h2>Kasus uji</h2>
+          <SectionHelp topic="readiness-cases" />
           <form onSubmit={(event) => void createCase(event)}>
             <label>
               Nama
               <input
+                aria-label="Nama"
+                aria-describedby="help-ai-readiness-1"
                 required
                 minLength={3}
                 maxLength={160}
                 value={name}
                 onChange={(event) => setName(event.target.value)}
               />
+              <FieldHelp id="help-ai-readiness-1">
+                Nama skenario yang mudah dikenali, misalnya Permintaan bantuan admin.
+              </FieldHelp>
             </label>
             <label>
               Pertanyaan
               <textarea
+                aria-label="Pertanyaan"
+                aria-describedby="help-ai-readiness-2"
                 required
                 minLength={2}
                 maxLength={2000}
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
               />
+              <FieldHelp id="help-ai-readiness-2">
+                Contoh pesan pelanggan yang diuji, misalnya Saya ingin bicara dengan admin.
+              </FieldHelp>
             </label>
             <label>
               Hasil yang diharapkan
               <select
+                aria-label="Hasil yang diharapkan"
+                aria-describedby="help-ai-readiness-3"
                 value={expectedStatus}
                 onChange={(event) => setExpectedStatus(event.target.value as typeof expectedStatus)}
               >
@@ -188,6 +202,10 @@ export default function AiReadinessPage() {
                 <option value="fallback">Klarifikasi / fallback</option>
                 <option value="handoff">Diteruskan ke CS (handoff)</option>
               </select>
+              <FieldHelp id="help-ai-readiness-3">
+                Pilih jawaban langsung, klarifikasi/fallback, atau diteruskan ke CS. Hasil AI
+                dibandingkan dengan pilihan ini.
+              </FieldHelp>
             </label>
             <label className="inline-checkbox">
               <input
@@ -260,6 +278,7 @@ export default function AiReadinessPage() {
         <section className="section-card">
           <p className="eyebrow">Pemeriksaan sebelum digunakan</p>
           <h2>Kesiapan rilis</h2>
+          <SectionHelp topic="readiness-release" />
           <button
             className="primary-button"
             disabled={busy || loading || Boolean(loadError)}
@@ -303,6 +322,7 @@ export default function AiReadinessPage() {
       <section className="section-card">
         <p className="eyebrow">Status operasional</p>
         <h2>Peringatan aktif</h2>
+        <SectionHelp topic="readiness-alerts" />
         <div
           className="stack-list phase5-fixed-list"
           role="region"

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Shell } from '../../components/shell';
+import { SectionHelp } from '../../components/section-help';
 import { useSession } from '../../components/use-session';
 import { api } from '../../lib/api';
 
@@ -114,6 +115,7 @@ export default function AgentsPage() {
         <div>
           <p className="eyebrow">Satu agent WhatsApp aktif</p>
           <h2>Asisten operasional tenant</h2>
+          <SectionHelp topic="agents-summary" />
           <p>Ringkasan aturan, AI, keamanan, dan sumber jawaban yang digunakan.</p>
         </div>
         <span className={`state-badge ${readiness === 'Siap beroperasi' ? 'healthy' : ''}`}>
@@ -204,6 +206,7 @@ export default function AgentsPage() {
           <div>
             <p className="eyebrow">Konfigurasi saat ini</p>
             <h2>Komposisi agent aktif</h2>
+            <SectionHelp topic="agents-runtime" />
           </div>
           <small>Hanya lihat</small>
         </div>

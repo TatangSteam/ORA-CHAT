@@ -83,6 +83,11 @@ Jangan menyalin password atau isi `.secrets` ke source code, log, screenshot, ma
 
 Setelah login:
 
+Buka menu **Buku Panduan** (`/guidebook`) untuk penjelasan seluruh fitur dalam satu halaman,
+urutan persiapan, contoh penggunaan, arti istilah, dan solusi kendala. Gunakan pencarian atau
+daftar isi untuk menemukan topik. Panduan dapat dibaca semua akun yang sudah masuk; akses
+ke tindakan pada fitur tetap mengikuti izin akun.
+
 1. Buka **Sesi WhatsApp** dan pindai QR.
 2. Buka **Integrasi AI**, simpan credential provider, jalankan uji server-side, lalu aktifkan koneksi chat.
 3. Tambahkan dan publish knowledge RAHO.

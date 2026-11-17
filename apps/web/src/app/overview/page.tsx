@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
 import { Shell } from '../../components/shell';
+import { SectionHelp } from '../../components/section-help';
 import { useSession } from '../../components/use-session';
 import { api } from '../../lib/api';
 
@@ -216,6 +217,7 @@ export default function OverviewPage() {
           <strong>Status belum sinkron.</strong> {loadError}
         </div>
       ) : null}
+      <SectionHelp topic="overview-status" />
       <section className="overview-health-strip" aria-label="Status kontrol operasional">
         <article className={overview?.sendingPaused ? 'health-tile is-warning' : 'health-tile'}>
           <span>Pengiriman</span>
@@ -253,6 +255,7 @@ export default function OverviewPage() {
             <div>
               <p className="eyebrow">Prioritas operator</p>
               <h2 id="priority-heading">Perlu ditindaklanjuti</h2>
+              <SectionHelp topic="overview-priority" />
             </div>
             <small>{priorities.length ? `${priorities.length} item` : 'Tidak ada item'}</small>
           </div>
@@ -292,6 +295,7 @@ export default function OverviewPage() {
             <div>
               <p className="eyebrow">Kesehatan sistem</p>
               <h2 id="dependency-heading">Layanan terhubung</h2>
+              <SectionHelp topic="overview-services" />
             </div>
             <small>{overview?.dependencies.length ?? 0} layanan</small>
           </div>

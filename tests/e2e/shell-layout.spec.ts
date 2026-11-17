@@ -139,7 +139,7 @@ for (const viewport of [
     const navigation = page.getByRole('navigation', { name: 'Navigasi utama', exact: true });
     const brand = sidebar.locator('.brand');
     const footer = sidebar.locator('.sidebar-foot');
-    await expect(navigation.getByRole('link')).toHaveCount(19);
+    await expect(navigation.getByRole('link')).toHaveCount(20);
     await expect(
       navigation.getByRole('link', { name: 'Integrasi AI', exact: true })
     ).toHaveAttribute('aria-current', 'page');
@@ -218,7 +218,7 @@ test('the 900px breakpoint switches between desktop navigation and the drawer', 
   await expect(drawer).toBeVisible();
   await expect(
     drawer.getByRole('navigation', { name: 'Navigasi utama', exact: true }).getByRole('link')
-  ).toHaveCount(19);
+  ).toHaveCount(20);
   await assertWithinViewport(page, drawer);
   await assertNoHorizontalOverflow(page);
   await page.keyboard.press('Escape');
@@ -254,7 +254,7 @@ test('mobile navigation traps focus, shows every menu item, and closes accessibl
   const brandLink = drawer.getByRole('link', { name: 'RAHO Control Room, beranda', exact: true });
   const navigation = drawer.getByRole('navigation', { name: 'Navigasi utama', exact: true });
   await expect(close).toBeFocused();
-  await expect(navigation.getByRole('link')).toHaveCount(19);
+  await expect(navigation.getByRole('link')).toHaveCount(20);
   await expect(navigation.getByRole('link', { name: 'Integrasi AI', exact: true })).toHaveAttribute(
     'aria-current',
     'page'

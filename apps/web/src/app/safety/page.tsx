@@ -4,6 +4,7 @@ import { type FormEvent, useCallback, useEffect, useState } from 'react';
 
 import { AppIcon } from '../../components/app-icon';
 import { Shell } from '../../components/shell';
+import { SectionHelp, FieldHelp } from '../../components/section-help';
 import { api, ApiError } from '../../lib/api';
 
 interface SafetyState {
@@ -89,6 +90,7 @@ export default function SafetyPage() {
               </p>
             </div>
           </div>
+          <SectionHelp topic="safety-status" />
           <dl>
             <div>
               <dt>Alasan terakhir</dt>
@@ -109,7 +111,7 @@ export default function SafetyPage() {
                 : 'Jeda pengiriman'
               : 'Atur pengiriman'}
           </h2>
-          <p>Isi alasan untuk mengubah status pengiriman.</p>
+          <SectionHelp topic="safety-action" />
           {notice ? (
             <div className="notice" role="status">
               {notice}
@@ -118,7 +120,18 @@ export default function SafetyPage() {
           <form onSubmit={(event) => void mutate(event)}>
             <label>
               Alasan
-              <textarea name="reason" minLength={8} maxLength={500} required />
+              <textarea
+                aria-label="Alasan"
+                aria-describedby="help-safety-1"
+                name="reason"
+                minLength={8}
+                maxLength={500}
+                required
+              />
+              <FieldHelp id="help-safety-1">
+                Catat masalah atau perbaikannya, minimal 8 karakter. Contoh: Pesan ganda sudah
+                diperiksa, pengiriman dilanjutkan.
+              </FieldHelp>
             </label>
             <button
               className={state?.sendingPaused ? 'primary-button' : 'danger-button'}

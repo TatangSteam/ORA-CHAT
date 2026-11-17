@@ -1,6 +1,6 @@
 type Guide = { purpose: string; steps: string[]; note: string };
 
-const guides: Record<string, Guide> = {
+export const pageGuides: Record<string, Guide> = {
   '/overview': {
     purpose: 'Mulai dari sini untuk memantau operasional harian.',
     steps: [
@@ -156,7 +156,7 @@ const guides: Record<string, Guide> = {
 };
 
 export function PageGuide({ pathname }: { pathname: string }) {
-  const guide = guides[pathname];
+  const guide = pageGuides[pathname];
   if (!guide) return null;
   return (
     <aside className="page-guide" aria-label="Petunjuk penggunaan">

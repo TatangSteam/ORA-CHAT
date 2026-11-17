@@ -3,6 +3,7 @@
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 
 import { Shell } from '../../components/shell';
+import { SectionHelp, FieldHelp } from '../../components/section-help';
 import { api, ApiError } from '../../lib/api';
 
 interface RuleConfig {
@@ -106,8 +107,9 @@ export default function ChatbotPage() {
         <section className="section-card">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">Ordered rules</p>
-              <h2>Konfigurasi deterministic</h2>
+              <p className="eyebrow">Balasan sesuai pemicu</p>
+              <h2>Aturan balasan otomatis</h2>
+              <SectionHelp topic="chatbot-rules" />
             </div>
             <span className="state-badge">
               {config ? `v${config.version} · ${config.status}` : 'baru'}
@@ -117,26 +119,44 @@ export default function ChatbotPage() {
             <label>
               Trigger persis
               <input
+                aria-label="Trigger persis"
+                aria-describedby="help-chatbot-1"
                 required
                 value={trigger}
                 onChange={(event) => setTrigger(event.target.value)}
               />
+              <FieldHelp id="help-chatbot-1">
+                Kata atau kalimat yang harus cocok dengan pesan pelanggan. Contoh: menu. Pastikan
+                kecocokannya lewat panel uji.
+              </FieldHelp>
             </label>
             <label>
               Respons
               <textarea
+                aria-label="Respons"
+                aria-describedby="help-chatbot-2"
                 required
                 value={response}
                 onChange={(event) => setResponse(event.target.value)}
               />
+              <FieldHelp id="help-chatbot-2">
+                Balasan tetap ketika pemicu cocok, misalnya Silakan pilih layanan yang Anda
+                perlukan.
+              </FieldHelp>
             </label>
             <label>
               Fallback aman
               <textarea
+                aria-label="Fallback aman"
+                aria-describedby="help-chatbot-3"
                 required
                 value={fallback}
                 onChange={(event) => setFallback(event.target.value)}
               />
+              <FieldHelp id="help-chatbot-3">
+                Balasan cadangan jika aturan tidak cocok. Contoh: Mohon tunggu, admin kami akan
+                membantu.
+              </FieldHelp>
             </label>
             {error && <p className="error-summary">{error}</p>}
             <div className="action-row">
@@ -149,18 +169,30 @@ export default function ChatbotPage() {
                 type="button"
                 onClick={() => void publish()}
               >
-                Publish atomic
+                Publikasikan aturan
               </button>
             </div>
           </form>
         </section>
         <section className="section-card">
-          <p className="eyebrow">Test console</p>
+          <p className="eyebrow">Contoh pesan pelanggan</p>
           <h2>Uji routing tanpa mengirim WhatsApp</h2>
-          <p>Playground ini hanya mengevaluasi rule dan tidak membuat penerima atau outbox.</p>
+          <SectionHelp topic="chatbot-test" />
+          <p>
+            Pengujian ini hanya menampilkan hasil aturan. Tidak ada pesan yang dikirim kepada
+            pelanggan.
+          </p>
           <label>
             Pesan uji
-            <textarea value={testInput} onChange={(event) => setTestInput(event.target.value)} />
+            <textarea
+              aria-label="Pesan uji"
+              aria-describedby="help-chatbot-4"
+              value={testInput}
+              onChange={(event) => setTestInput(event.target.value)}
+            />
+            <FieldHelp id="help-chatbot-4">
+              Contoh pesan pelanggan untuk mencoba aturan yang sudah disimpan, misalnya menu.
+            </FieldHelp>
           </label>
           <button className="secondary-button" onClick={() => void test()}>
             Jalankan test

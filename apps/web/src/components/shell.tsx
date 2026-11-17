@@ -9,7 +9,7 @@ import { AppIcon, type AppIconName } from './app-icon';
 import { useSession } from './use-session';
 import { PageGuide } from './page-guide';
 
-type NavigationItem = { href: string; label: string; permission: string; icon: AppIconName };
+type NavigationItem = { href: string; label: string; permission?: string; icon: AppIconName };
 const navigationGroups: { label: string; items: NavigationItem[] }[] = [
   {
     label: 'Ruang kerja',
@@ -17,7 +17,8 @@ const navigationGroups: { label: string; items: NavigationItem[] }[] = [
       { href: '/overview', label: 'Beranda', permission: 'overview.read', icon: 'overview' },
       { href: '/inbox', label: 'Inbox', permission: 'messages.read', icon: 'inbox' },
       { href: '/contacts', label: 'Kontak', permission: 'contacts.read', icon: 'contacts' },
-      { href: '/compose', label: 'Tulis pesan', permission: 'messages.send', icon: 'compose' }
+      { href: '/compose', label: 'Tulis pesan', permission: 'messages.send', icon: 'compose' },
+      { href: '/guidebook', label: 'Buku Panduan', icon: 'knowledge' }
     ]
   },
   {
@@ -262,7 +263,9 @@ export const Shell = ({
         </div>
         <nav className="sidebar-nav" ref={navRef} aria-label="Navigasi utama">
           {navigationGroups.map((group) => {
-            const items = group.items.filter((item) => user.permissions.includes(item.permission));
+            const items = group.items.filter(
+              (item) => !item.permission || user.permissions.includes(item.permission)
+            );
             return (
               items.length > 0 && (
                 <div className="navigation-group" key={group.label}>

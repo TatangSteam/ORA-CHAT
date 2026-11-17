@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useState } from 'react';
 import { Shell } from '../../components/shell';
+import { SectionHelp, FieldHelp } from '../../components/section-help';
 import { api, ApiError } from '../../lib/api';
 
 type Purpose = 'chat' | 'embedding';
@@ -315,6 +316,7 @@ function ConnectionEditor({
         <div className="ai-step-heading">
           <div>
             <h3>Koneksi API</h3>
+            <SectionHelp topic="ai-connection" />
             {isNew && <p>Isi endpoint dan API key dari provider Anda.</p>}
           </div>
         </div>
@@ -324,6 +326,8 @@ function ConnectionEditor({
               <label htmlFor={`${id}-name`}>
                 Nama koneksi
                 <input
+                  aria-label="Nama koneksi"
+                  aria-describedby="help-ai-settings-1"
                   id={`${id}-name`}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -331,10 +335,15 @@ function ConnectionEditor({
                   readOnly={!isNew}
                   placeholder="Contoh: Yoga AI"
                 />
+                <FieldHelp id="help-ai-settings-1">
+                  Nama internal untuk membedakan akun atau provider, misalnya Provider utama CS.
+                </FieldHelp>
               </label>
               <label htmlFor={`${id}-provider`}>
                 Provider
                 <select
+                  aria-label="Provider"
+                  aria-describedby="help-ai-settings-2"
                   id={`${id}-provider`}
                   value={provider}
                   disabled={!isNew}
@@ -351,6 +360,10 @@ function ConnectionEditor({
                       </option>
                     ))}
                 </select>
+                <FieldHelp id="help-ai-settings-2">
+                  Pilih penyedia yang menerbitkan API key. Pilihan ini menentukan cara menghubungi
+                  layanan AI.
+                </FieldHelp>
               </label>
             </div>
             {hasEndpoint && (
@@ -369,7 +382,10 @@ function ConnectionEditor({
                   placeholder="https://provider.example/v1"
                   spellCheck={false}
                 />
-                <small id={`${id}-url-help`}>Gunakan endpoint API yang berakhir dengan /v1.</small>
+                <small id={`${id}-url-help`}>
+                  Alamat API dari penyedia layanan, misalnya https://provider.example/v1. Gunakan
+                  endpoint yang berakhir dengan /v1, bukan alamat halaman login provider.
+                </small>
               </div>
             )}
           </>
@@ -423,7 +439,9 @@ function ConnectionEditor({
                   </div>
                 </div>
                 <small id={`${id}-key-help`}>
-                  Key dikirim melalui server dan disimpan terenkripsi.
+                  Kunci akses dari akun provider untuk mengizinkan aplikasi memakai AI. Salin dari
+                  dashboard provider; jangan membagikannya kepada pelanggan. Key dikirim melalui
+                  server dan disimpan terenkripsi.
                 </small>
                 {editKey && (
                   <>
@@ -507,6 +525,7 @@ function ConnectionEditor({
         <div className="ai-step-heading">
           <div>
             <h3>Model & konfigurasi</h3>
+            <SectionHelp topic="ai-model" />
             <p>
               Pilih model yang akan digunakan untuk{' '}
               {purpose === 'chat' ? 'balasan AI' : 'pencarian knowledge'}.
@@ -535,12 +554,17 @@ function ConnectionEditor({
           <label htmlFor={`${id}-search`} className="ai-search-label">
             Cari model
             <input
+              aria-label="Cari model"
+              aria-describedby="help-ai-settings-3"
               id={`${id}-search`}
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Cari berdasarkan ID model…"
             />
+            <FieldHelp id="help-ai-settings-3">
+              Ketik sebagian ID untuk menyaring daftar. Pencarian tidak mengubah model aktif.
+            </FieldHelp>
           </label>
         )}
         <label htmlFor={`${id}-model`}>
@@ -548,6 +572,7 @@ function ConnectionEditor({
           {manual ? (
             <input
               id={`${id}-model`}
+              aria-describedby={`${id}-model-help`}
               value={modelId}
               onChange={(e) => updateModel(e.target.value)}
               placeholder="Masukkan ID model dari provider"
@@ -556,6 +581,7 @@ function ConnectionEditor({
           ) : (
             <select
               id={`${id}-model`}
+              aria-describedby={`${id}-model-help`}
               value={modelId}
               onChange={(e) => updateModel(e.target.value)}
             >
@@ -568,6 +594,10 @@ function ConnectionEditor({
             </select>
           )}
         </label>
+        <FieldHelp id={`${id}-model-help`}>
+          Model adalah mesin AI yang dipakai koneksi ini. Pilih dari daftar, atau masukkan ID persis
+          dari provider. Pilihan baru baru berlaku setelah diuji dan diaktifkan.
+        </FieldHelp>
         <label className="ai-checkbox">
           <input type="checkbox" checked={manual} onChange={(e) => setManual(e.target.checked)} />
           <span>Masukkan ID model secara manual</span>
@@ -576,6 +606,8 @@ function ConnectionEditor({
           <label htmlFor={`${id}-dimensions`}>
             Dimensi embedding
             <input
+              aria-label="Dimensi embedding"
+              aria-describedby="help-ai-settings-4"
               id={`${id}-dimensions`}
               type="number"
               min={1}
@@ -584,14 +616,21 @@ function ConnectionEditor({
               disabled={!isNew}
               onChange={(e) => setDimensions(Number(e.target.value))}
             />
+            <FieldHelp id="help-ai-settings-4">
+              Salin jumlah dimensi dari spesifikasi model. Harus cocok dengan keluaran model dan
+              indeks dokumen.
+            </FieldHelp>
           </label>
         )}
         <details className="ai-advanced">
           <summary>Pengaturan lanjutan</summary>
+          <SectionHelp topic="ai-advanced" />
           <div className="ai-form-two">
             <label htmlFor={`${id}-timeout`}>
               Timeout (detik)
               <input
+                aria-label="Timeout (detik)"
+                aria-describedby="help-ai-settings-5"
                 id={`${id}-timeout`}
                 type="number"
                 min={1}
@@ -603,10 +642,16 @@ function ConnectionEditor({
                   setProbe(null);
                 }}
               />
+              <FieldHelp id="help-ai-settings-5">
+                Lama maksimal menunggu provider. Jika terlewati, permintaan gagal. Biarkan nilai
+                awal jika belum perlu diubah.
+              </FieldHelp>
             </label>
             <label htmlFor={`${id}-output`}>
               Batas token output
               <input
+                aria-label="Batas token output"
+                aria-describedby="help-ai-settings-6"
                 id={`${id}-output`}
                 type="number"
                 min={16}
@@ -618,6 +663,10 @@ function ConnectionEditor({
                   setProbe(null);
                 }}
               />
+              <FieldHelp id="help-ai-settings-6">
+                Batas panjang jawaban dalam token, yaitu potongan teks. Ini bukan saldo akun
+                provider.
+              </FieldHelp>
             </label>
           </div>
           <p>
@@ -656,6 +705,7 @@ function ConnectionEditor({
         <div className="ai-step-heading">
           <div>
             <h3>Validasi & aktivasi</h3>
+            <SectionHelp topic="ai-activation" />
             <p>
               {isNew
                 ? 'Simpan koneksi, lalu uji model sebelum mengaktifkannya.'
@@ -881,6 +931,7 @@ export default function AiSettingsPage() {
               <section className="section-card ai-connections-card">
                 <div className="ai-connections-heading">
                   <h3>Koneksi tersimpan</h3>
+                  <SectionHelp topic="ai-saved" />
                   <span>{filtered.length}</span>
                 </div>
                 <label className="ai-mobile-connection-picker">
@@ -935,6 +986,7 @@ export default function AiSettingsPage() {
                   <span>{activeConnection ? 'MODEL AKTIF' : 'STATUS INTEGRASI'}</span>
                 </div>
                 <h3>{activeConnection?.modelId ?? 'Belum diaktifkan'}</h3>
+                <SectionHelp topic="ai-active" />
                 <p>
                   {activeConnection
                     ? activeConnection.name

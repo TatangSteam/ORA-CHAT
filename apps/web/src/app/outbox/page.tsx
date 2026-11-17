@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { Shell } from '../../components/shell';
+import { SectionHelp, FieldHelp } from '../../components/section-help';
 import { api, ApiError } from '../../lib/api';
 import type { OutboxSummary } from '../../lib/messaging';
 
@@ -50,12 +51,23 @@ export default function OutboxPage() {
           <div>
             <p className="eyebrow">Riwayat pesan</p>
             <h2>Status pengiriman</h2>
+            <SectionHelp topic="outbox-status" />
           </div>
           <span className="count-badge">{items.length}</span>
         </div>
         <label>
           Catatan tindakan
-          <input minLength={8} value={reason} onChange={(event) => setReason(event.target.value)} />
+          <input
+            aria-label="Catatan tindakan"
+            aria-describedby="help-outbox-1"
+            minLength={8}
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+          />
+          <FieldHelp id="help-outbox-1">
+            Alasan perubahan status, minimal 8 karakter. Contoh: Nomor diperbaiki, coba kirim
+            kembali.
+          </FieldHelp>
         </label>
         {error && <p className="error-summary">{error}</p>}
         <div className="data-list">

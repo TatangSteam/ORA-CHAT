@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 
 test.use({ baseURL: process.env.GUIDANCE_TEST_ORIGIN ?? 'http://localhost:3000' });
 
@@ -18,6 +19,55 @@ test.beforeEach(async ({ page }) => {
     if (path === '/session') data = { state: 'connected' };
     await route.fulfill({ json: { data, meta: { requestId: 'guide-test' } } });
   });
+});
+
+test('knowledge explains the form and publication stages next to the controls', async ({
+  page
+}) => {
+  await page.goto('/knowledge');
+  const editor = page
+    .locator('section')
+    .filter({ has: page.getByRole('heading', { name: 'Tambah knowledge', exact: true }) });
+  await expect(editor.getByLabel('Penjelasan bagian')).toContainText(
+    'Draft belum menjadi sumber aktif'
+  );
+  await expect(
+    page.getByRole('textbox', { name: 'Judul', exact: true })
+  ).toHaveAccessibleDescription(/Nama topik yang jelas/);
+  await expect(
+    page.getByRole('textbox', { name: 'Jawaban terverifikasi', exact: true })
+  ).toHaveAccessibleDescription(/Jangan menebak/);
+  await expect(
+    page.getByRole('textbox', { name: 'Varian pertanyaan (satu per baris)', exact: true })
+  ).toHaveAccessibleDescription(/satu per baris/);
+  await expect(
+    page.getByText('Diarsipkan dan tidak digunakan sebagai sumber aktif.', { exact: true })
+  ).toBeVisible();
+  await page.screenshot({ path: 'test-results/section-help-knowledge.png', fullPage: true });
+  const accessibility = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(accessibility.violations).toEqual([]);
+});
+
+test('compose explains real sending and scheduling on a narrow screen', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/compose');
+  await expect(
+    page.getByRole('textbox', { name: 'Nomor tujuan', exact: true })
+  ).toHaveAccessibleDescription(/Periksa agar tidak salah kirim/);
+  await expect(page.getByLabel('Jadwal pengiriman', { exact: true })).toHaveAccessibleDescription(
+    /Kosongkan agar antrean segera memproses pesan/
+  );
+  await expect(
+    page.getByText('Mengantrekan pengiriman sungguhan. Pantau hasil di halaman Riwayat.', {
+      exact: true
+    })
+  ).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true
+  );
+  await page
+    .locator('.compose-card')
+    .screenshot({ path: 'test-results/section-help-compose-mobile.png' });
 });
 
 test('saves a handoff scenario without requiring knowledge citations', async ({ page }) => {

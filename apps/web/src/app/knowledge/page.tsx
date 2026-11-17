@@ -3,6 +3,7 @@
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 
 import { Shell } from '../../components/shell';
+import { SectionHelp, FieldHelp } from '../../components/section-help';
 import { api, ApiError } from '../../lib/api';
 
 interface Category {
@@ -106,11 +107,12 @@ export default function KnowledgePage() {
   };
 
   return (
-    <Shell eyebrow="Grounded content" title="Knowledge">
+    <Shell eyebrow="Sumber jawaban AI" title="Knowledge">
       <div className="split-grid">
         <section className="section-card">
-          <p className="eyebrow">Governance</p>
-          <h2>Item dan versi immutable</h2>
+          <p className="eyebrow">Informasi resmi</p>
+          <h2>Daftar informasi dan status publikasi</h2>
+          <SectionHelp topic="knowledge-list" />
           <div className="stack-list">
             {items.map((item) => (
               <article className="list-row knowledge-list-row" key={item.id}>
@@ -153,21 +155,32 @@ export default function KnowledgePage() {
           </div>
         </section>
         <section className="section-card">
-          <p className="eyebrow">Draft editor</p>
+          <p className="eyebrow">Rancangan informasi baru</p>
           <h2>Tambah knowledge</h2>
+          <SectionHelp topic="knowledge-create" />
           <form onSubmit={(event) => void create(event)}>
             <label>
               Judul
               <input
+                aria-label="Judul"
+                aria-describedby="help-knowledge-1"
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 required
                 minLength={3}
               />
+              <FieldHelp id="help-knowledge-1">
+                Nama topik yang jelas, misalnya Berapa jam layanan pelanggan?
+              </FieldHelp>
             </label>
             <label>
               Kategori
-              <select value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
+              <select
+                aria-label="Kategori"
+                aria-describedby="help-knowledge-2"
+                value={categoryId}
+                onChange={(event) => setCategoryId(event.target.value)}
+              >
                 <option value="">Tanpa kategori</option>
                 {categories.map((category) => (
                   <option key={category.id} value={category.id}>
@@ -175,18 +188,36 @@ export default function KnowledgePage() {
                   </option>
                 ))}
               </select>
+              <FieldHelp id="help-knowledge-2">
+                Kelompok topik agar mudah ditemukan. Pilih Tanpa kategori jika belum ditentukan.
+              </FieldHelp>
             </label>
             <label>
               Jawaban terverifikasi
               <textarea
+                aria-label="Jawaban terverifikasi"
+                aria-describedby="help-knowledge-3"
                 value={answer}
                 onChange={(event) => setAnswer(event.target.value)}
                 required
               />
+              <FieldHelp id="help-knowledge-3">
+                Isi informasi resmi yang sudah dipastikan benar, termasuk syarat dan batasannya.
+                Jangan menebak harga, jadwal, atau manfaat.
+              </FieldHelp>
             </label>
             <label>
               Varian pertanyaan (satu per baris)
-              <textarea value={questions} onChange={(event) => setQuestions(event.target.value)} />
+              <textarea
+                aria-label="Varian pertanyaan (satu per baris)"
+                aria-describedby="help-knowledge-4"
+                value={questions}
+                onChange={(event) => setQuestions(event.target.value)}
+              />
+              <FieldHelp id="help-knowledge-4">
+                Tulis beberapa cara menanyakan hal yang sama, satu per baris. Contoh: Buka jam
+                berapa? lalu Jam kerja admin kapan?
+              </FieldHelp>
             </label>
             <button className="primary-button" type="submit">
               Simpan draft

@@ -3,6 +3,7 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 
 import { Shell } from '../../components/shell';
+import { SectionHelp, FieldHelp } from '../../components/section-help';
 import { api, ApiError } from '../../lib/api';
 
 type TemplateVersion = {
@@ -126,32 +127,48 @@ export default function ComposePage() {
   return (
     <Shell eyebrow="Pesan" title="Tulis pesan">
       <section className="compose-card section-card">
-        <p className="eyebrow">Durable outbox</p>
+        <p className="eyebrow">Antrean pengiriman</p>
         <h2>Pesan WhatsApp baru</h2>
-        <p>Pesan dan snapshot template disimpan immutable sebelum worker mengirimkannya.</p>
+        <SectionHelp topic="compose-message" />
+        <p>
+          Pesan disimpan dalam antrean terlebih dahulu, kemudian dikirim sesuai jadwal. Pantau hasil
+          pengiriman melalui Riwayat.
+        </p>
         <form onSubmit={(event) => void submit(event)}>
           <div className="form-grid">
             <label>
               Nomor tujuan
               <input
+                aria-label="Nomor tujuan"
+                aria-describedby="help-compose-1"
                 required
                 value={phone}
                 onChange={(event) => setPhone(event.target.value)}
                 placeholder="+62 812 3456 7890"
               />
+              <FieldHelp id="help-compose-1">
+                Nomor WhatsApp penerima, misalnya +6281234567890. Periksa agar tidak salah kirim.
+              </FieldHelp>
             </label>
             <label>
               Nama tampilan
               <input
+                aria-label="Nama tampilan"
+                aria-describedby="help-compose-2"
                 value={displayName}
                 onChange={(event) => setDisplayName(event.target.value)}
                 placeholder="Opsional"
               />
+              <FieldHelp id="help-compose-2">
+                Opsional: nama penerima agar mudah dikenali dalam percakapan.
+              </FieldHelp>
             </label>
           </div>
           <label>
             Template internal
             <select
+              aria-label="Template internal"
+              aria-describedby="help-compose-3"
               value={templateVersionId}
               onChange={(event) => chooseTemplate(event.target.value)}
             >
@@ -168,6 +185,10 @@ export default function ComposePage() {
               )}
             </select>
             <small>Template internal berbeda dari template resmi WhatsApp Business/Meta.</small>
+            <FieldHelp id="help-compose-3">
+              Pilih teks siap pakai, atau Tanpa template untuk menulis sendiri. Mengganti pilihan
+              mengosongkan pesan dan pratinjau.
+            </FieldHelp>
           </label>
           {selectedVersion ? (
             <div className="template-compose-panel">
@@ -176,6 +197,8 @@ export default function ComposePage() {
                   <label key={variable}>
                     {variableLabels[variable] ?? variable}
                     <input
+                      aria-label={variableLabels[variable] ?? variable}
+                      aria-describedby={`help-compose-variable-${variable}`}
                       required
                       value={resolvedVariables[variable] ?? ''}
                       onChange={(event) =>
@@ -185,6 +208,10 @@ export default function ComposePage() {
                         }))
                       }
                     />
+                    <FieldHelp id={`help-compose-variable-${variable}`}>
+                      Isi data yang benar untuk penerima ini. Nilai ini menggantikan bagian{' '}
+                      {variable} di dalam template.
+                    </FieldHelp>
                   </label>
                 ))}
               </div>
@@ -211,35 +238,52 @@ export default function ComposePage() {
                 </fieldset>
               )}
               <button type="button" disabled={busy} onClick={() => void renderPreview()}>
-                Render preview
+                Lihat pratinjau
               </button>
               <label>
-                Preview final
+                Pratinjau pesan
                 <textarea
+                  aria-label="Pratinjau pesan"
+                  aria-describedby="help-compose-4"
                   readOnly
-                  value={preview?.renderedBody ?? 'Isi variable lalu render preview.'}
+                  value={preview?.renderedBody ?? 'Isi data template, lalu klik Lihat pratinjau.'}
                 />
+                <FieldHelp id="help-compose-4">
+                  Periksa hasil template setelah data diisi. Ubah data di atas dan buat pratinjau
+                  lagi bila perlu.
+                </FieldHelp>
               </label>
             </div>
           ) : (
             <label>
               Isi pesan
               <textarea
+                aria-label="Isi pesan"
+                aria-describedby="help-compose-5"
                 required
                 maxLength={4096}
                 value={content}
                 onChange={(event) => setContent(event.target.value)}
               />
               <small>{content.length.toLocaleString('id-ID')} / 4.096</small>
+              <FieldHelp id="help-compose-5">
+                Tulis pesan yang akan diterima pelanggan. Maksimal 4.096 karakter.
+              </FieldHelp>
             </label>
           )}
           <label>
             Jadwal pengiriman
             <input
+              aria-label="Jadwal pengiriman"
+              aria-describedby="help-compose-6"
               type="datetime-local"
               value={scheduledAt}
               onChange={(event) => setScheduledAt(event.target.value)}
             />
+            <FieldHelp id="help-compose-6">
+              Kosongkan agar antrean segera memproses pesan. Jika diisi, pesan menunggu waktu ini;
+              jam mengikuti zona waktu perangkatmu.
+            </FieldHelp>
           </label>
           {error && <p className="error-summary">{error}</p>}
           {result && <p className="notice success-notice">{result}</p>}

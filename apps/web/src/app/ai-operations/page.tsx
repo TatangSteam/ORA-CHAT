@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { Shell } from '../../components/shell';
+import { SectionHelp, FieldHelp } from '../../components/section-help';
 import { api, ApiError } from '../../lib/api';
 
 interface Feedback {
@@ -56,7 +57,7 @@ export default function AiOperationsPage() {
           reason: 'Review kualitas jawaban oleh admin operasional'
         })
       });
-      setNotice('Feedback disimpan dan perubahan tercatat pada audit append-only.');
+      setNotice('Penilaian disimpan dan tercatat dalam riwayat pemeriksaan.');
       await load();
     } catch (error) {
       setNotice(error instanceof ApiError ? error.message : 'Feedback gagal disimpan.');
@@ -77,7 +78,7 @@ export default function AiOperationsPage() {
       });
       setDraftAnswer('');
       setDraftId(null);
-      setNotice('Draft knowledge dibuat untuk ditinjau dan dipublikasikan melalui lifecycle.');
+      setNotice('Draft knowledge dibuat. Buka Knowledge untuk memeriksa dan memublikasikannya.');
       await load();
     } catch (error) {
       setNotice(error instanceof ApiError ? error.message : 'Draft gagal dibuat.');
@@ -85,15 +86,16 @@ export default function AiOperationsPage() {
   };
 
   return (
-    <Shell eyebrow="Quality operations" title="Review & unanswered">
+    <Shell eyebrow="Pemeriksaan kualitas" title="Review jawaban dan pertanyaan">
       {notice ? (
         <p className="notice" role="status">
           {notice}
         </p>
       ) : null}
       <section className="section-card">
-        <p className="eyebrow">Conversation review</p>
+        <p className="eyebrow">Penilaian jawaban</p>
         <h2>Jawaban AI terbaru</h2>
+        <SectionHelp topic="review-answers" />
         <div className="stack-list">
           {traces.map((trace) => (
             <article className="list-row operations-row" key={trace.id}>
@@ -129,28 +131,37 @@ export default function AiOperationsPage() {
               </div>
             </article>
           ))}
-          {traces.length === 0 ? <p className="muted">Belum ada trace untuk direview.</p> : null}
+          {traces.length === 0 ? (
+            <p className="muted">Belum ada jawaban AI untuk diperiksa.</p>
+          ) : null}
         </div>
       </section>
       <section className="section-card">
-        <p className="eyebrow">Aggregated safely</p>
+        <p className="eyebrow">Bahan perbaikan knowledge</p>
         <h2>Pertanyaan belum terjawab</h2>
+        <SectionHelp topic="review-unanswered" />
         <div className="stack-list">
           {unanswered.map((question) => (
             <article className="list-row operations-row" key={question.id}>
               <div className="operations-copy">
                 <strong>{question.representativeQuestion}</strong>
                 <p>
-                  {question.occurrenceCount} occurrence · terakhir{' '}
+                  {question.occurrenceCount} kali muncul · terakhir{' '}
                   {new Date(question.lastSeenAt).toLocaleString('id-ID')}
                 </p>
                 {draftId === question.id ? (
                   <label>
                     Jawaban draft
                     <textarea
+                      aria-label="Jawaban draft"
+                      aria-describedby="help-ai-operations-1"
                       value={draftAnswer}
                       onChange={(event) => setDraftAnswer(event.target.value)}
                     />
+                    <FieldHelp id="help-ai-operations-1">
+                      Isi jawaban resmi yang sudah diverifikasi, lalu simpan draft. Lanjutkan
+                      pemeriksaan dan publikasi melalui Knowledge.
+                    </FieldHelp>
                   </label>
                 ) : null}
               </div>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Shell } from '../../components/shell';
+import { SectionHelp } from '../../components/section-help';
 import { api, ApiError } from '../../lib/api';
 
 interface SessionState {
@@ -225,6 +226,7 @@ export default function SessionPage() {
               <p>Status koneksi WhatsApp yang sedang digunakan aplikasi.</p>
             </div>
           </div>
+          <SectionHelp topic="session-status" />
           <dl>
             <div>
               <dt>Pembaruan state terakhir</dt>
@@ -268,6 +270,7 @@ export default function SessionPage() {
         <article className="section-card session-controls">
           <p className="eyebrow">Kontrol sesi</p>
           <h2>Kelola koneksi WhatsApp</h2>
+          <SectionHelp topic="session-controls" />
           <p>Semua aksi tercatat otomatis di audit log. Tidak perlu mengisi alasan.</p>
           {notice ? (
             <div className="notice" role="status">

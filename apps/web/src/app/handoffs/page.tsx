@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { Shell } from '../../components/shell';
+import { SectionHelp, FieldHelp } from '../../components/section-help';
 import { useSession } from '../../components/use-session';
 import { api, ApiError } from '../../lib/api';
 import type { HandoffSummary } from '../../lib/messaging';
@@ -54,6 +55,7 @@ export default function HandoffsPage() {
           <div>
             <p className="eyebrow">Penanganan admin</p>
             <h2>Antrean bantuan</h2>
+            <SectionHelp topic="handoffs-queue" />
           </div>
           <span className="count-badge">
             {items.filter(({ status }) => status !== 'resolved').length}
@@ -61,7 +63,17 @@ export default function HandoffsPage() {
         </div>
         <label>
           Catatan penyelesaian
-          <input minLength={8} value={note} onChange={(event) => setNote(event.target.value)} />
+          <input
+            aria-label="Catatan penyelesaian"
+            aria-describedby="help-handoffs-1"
+            minLength={8}
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+          />
+          <FieldHelp id="help-handoffs-1">
+            Tulis hasil penanganan sebelum menutup tugas, misalnya Jadwal konsultasi sudah
+            dikonfirmasi.
+          </FieldHelp>
         </label>
         {error && <p className="error-summary">{error}</p>}
         <div aria-label="Daftar handoff" className="data-list bounded-data-list" tabIndex={0}>
